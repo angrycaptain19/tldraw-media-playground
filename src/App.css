@@ -3,6 +3,7 @@
   flex-direction: column;
   width: 100%;
   height: 100%;
+  background: #0d1b2e;
 }
 
 /* ── Control-mode selector bar ──────────────────────────────────────────────── */
@@ -68,6 +69,7 @@
   align-items: flex-start;
   justify-content: center;
   overflow: auto;
+  background: #0d1b2e;
 }
 
 /* Chess board takes remaining horizontal space */
