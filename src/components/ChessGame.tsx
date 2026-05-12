@@ -14,6 +14,7 @@ import {
 } from '../chess'
 import { BOARD_THEMES, DEFAULT_THEME_ID, getTheme, getPieceSymbols } from './themes'
 import type { HandData } from '../hooks/useHandRecognition'
+import type { VoiceCommand } from '../hooks/useVoiceRecognition'
 import './ChessGame.css'
 
 function pieceSymbol(
@@ -94,9 +95,14 @@ interface ChessGameProps {
    * This avoids prop-drilling a callback that fires at 30+ fps.
    */
   registerHandDataCallback?: MutableRefObject<((data: HandData) => void) | null>
+  /**
+   * Parent passes a ref whose `.current` we set to our voice-command handler.
+   * When set, voice commands are routed into this component.
+   */
+  registerVoiceCommandCallback?: MutableRefObject<((cmd: VoiceCommand) => void) | null>
 }
 
-export default function ChessGame({ registerHandDataCallback }: ChessGameProps = {}) {
+export default function ChessGame({ registerHandDataCallback, registerVoiceCommandCallback }: ChessGameProps = {}) {
   const [game, dispatch] = useReducer(chessReducer, undefined, createInitialGameState)
   const [selected, setSelected] = useState<Square | null>(null)
   const [drag, setDrag] = useState<DragState | null>(null)
@@ -426,6 +432,86 @@ export default function ChessGame({ registerHandDataCallback }: ChessGameProps =
       }
     }
   }, [registerHandDataCallback])
+
+  // ── Voice command handler ─────────────────────────────────────────────────
+  //
+  // Accepts VoiceCommand objects from AudioControlPanel and translates them
+  // into the same game actions available via mouse/touch.
+  //
+  // Square labels coming from the parser are already in algebraic notation
+  // ("a1"–"h8").  We convert them to the internal { file, rank } format.
+
+  const voiceHandlerRef = useRef<(cmd: VoiceCommand) => void>(() => {})
+
+  useEffect(() => {
+    voiceHandlerRef.current = (cmd: VoiceCommand) => {
+      const currentGame = gameRef.current
+
+      if (cmd.type === 'new-game') {
+        dispatch({ type: 'NEW_GAME' })
+        setSelected(null)
+        return
+      }
+
+      if (cmd.type === 'undo') {
+        // Reuse the same two-ply undo logic as the Undo button
+        setSelected(null)
+        if (!aiEnabled || currentGame.history.length < 2) {
+          dispatch({ type: 'UNDO' })
+        } else {
+          dispatch({ type: 'UNDO_TWO' })
+        }
+        return
+      }
+
+      if (cmd.type === 'move' && cmd.from && cmd.to) {
+        if (!isHumanTurnRef.current) return
+        if (currentGame.status === 'checkmate' || currentGame.status === 'stalemate') return
+
+        // Convert "e2" -> { file: 4, rank: 1 }
+        const FILES_STR = 'abcdefgh'
+        const fileFrom = FILES_STR.indexOf(cmd.from[0])
+        const rankFrom = parseInt(cmd.from[1], 10) - 1
+        const fileTo   = FILES_STR.indexOf(cmd.to[0])
+        const rankTo   = parseInt(cmd.to[1], 10) - 1
+
+        if (fileFrom < 0 || fileTo < 0 || rankFrom < 0 || rankTo < 0) return
+
+        const fromSq: Square = { file: fileFrom, rank: rankFrom }
+        const toSq:   Square = { file: fileTo,   rank: rankTo   }
+
+        const piece = getPiece(currentGame.board, fromSq)
+        if (!piece || piece.color !== currentGame.turn) return
+
+        const moves = getMovesFrom(currentGame, fromSq)
+        const isLegal = moves.some(m => m.to.file === toSq.file && m.to.rank === toSq.rank)
+        if (!isLegal) return
+
+        if (requiresPromotion(currentGame, fromSq, toSq)) {
+          setPromotionPending({ from: fromSq, to: toSq })
+        } else {
+          const move = findMove(currentGame, fromSq, toSq)
+          if (move) {
+            dispatch({ type: 'APPLY_MOVE', move })
+            setSelected(null)
+          }
+        }
+      }
+    }
+  })
+
+  // Register voice-command callback with the parent ref
+  useEffect(() => {
+    if (!registerVoiceCommandCallback) return
+    registerVoiceCommandCallback.current = (cmd: VoiceCommand) => {
+      voiceHandlerRef.current(cmd)
+    }
+    return () => {
+      if (registerVoiceCommandCallback.current === voiceHandlerRef.current) {
+        registerVoiceCommandCallback.current = null
+      }
+    }
+  }, [registerVoiceCommandCallback])
 
   // ── Labels & status ───────────────────────────────────────────────────────
   const aiIsThinking = aiEnabled && game.turn === aiColor &&
