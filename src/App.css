@@ -5,6 +5,61 @@
   height: 100%;
 }
 
+/* ── Control-mode selector bar ──────────────────────────────────────────────── */
+
+.control-mode-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 1rem;
+  background: #0d1b2e;
+  border-bottom: 1px solid #1e3a5f;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.control-mode-bar__label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.control-mode-bar__options {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.control-mode-btn {
+  padding: 0.28rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #94a3b8;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.control-mode-btn:hover {
+  background: #2d3f55;
+  color: #e2e8f0;
+  border-color: #4b9cd3;
+}
+
+.control-mode-btn--active {
+  background: #0f3460;
+  color: #e2e8f0;
+  border-color: #4b9cd3;
+}
+
+/* ── Main layout ─────────────────────────────────────────────────────────────── */
+
 .main-area {
   flex: 1;
   min-height: 0;
@@ -21,8 +76,8 @@
   min-width: 0;
 }
 
-/* Hand recognition panel fixed width to the right */
-.hand-panel-aside {
+/* Side panel (hand or voice) -- fixed width on the right */
+.control-panel-aside {
   width: 300px;
   flex-shrink: 0;
   padding: 0.75rem 0.75rem 0.75rem 0;
@@ -32,7 +87,8 @@
   box-sizing: border-box;
 }
 
-/* On narrow screens, stack vertically */
+/* ── Responsive ─────────────────────────────────────────────────────────────── */
+
 @media (max-width: 860px) {
   .main-area {
     flex-direction: column;
@@ -40,7 +96,7 @@
     height: auto;
   }
 
-  .hand-panel-aside {
+  .control-panel-aside {
     width: 100%;
     max-width: 480px;
     height: auto;
