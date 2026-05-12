@@ -138,9 +138,9 @@ export default function HandRecognitionPanel({ onHandData }: HandRecognitionPane
 
           {/* Usage hint */}
           <div className="hrp__hint">
-            Point to hover a square - Pinch to select and move
+            Point to hover a square • Pinch (index + thumb) to pick up a piece
             <br />
-            <em>(gesture-to-move wiring coming in the next task)</em>
+            Drag to a valid square, then release the pinch to drop
           </div>
         </div>
       )}
