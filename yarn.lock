@@ -29,6 +29,11 @@
   resolved "https://registry.npmjs.org/@floating-ui/utils/-/utils-0.2.11.tgz"
   integrity sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==
 
+"@mediapipe/tasks-vision@^0.10.35":
+  version "0.10.35"
+  resolved "https://registry.npmjs.org/@mediapipe/tasks-vision/-/tasks-vision-0.10.35.tgz"
+  integrity sha512-HOvadwVRE6JC+45nyYhmnywnr5h/J8KZvOeUNVOG9q/0875pZgItznFB9bRTvLc264YSJqiZ1NsIpCStJw/egg==
+
 "@oxc-project/types@=0.129.0":
   version "0.129.0"
   resolved "https://registry.npmjs.org/@oxc-project/types/-/types-0.129.0.tgz"

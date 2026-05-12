@@ -9,4 +9,40 @@
   flex: 1;
   min-height: 0;
   position: relative;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  overflow: auto;
+}
+
+/* Chess board takes remaining horizontal space */
+.main-area > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Hand recognition panel fixed width to the right */
+.hand-panel-aside {
+  width: 300px;
+  flex-shrink: 0;
+  padding: 0.75rem 0.75rem 0.75rem 0;
+  overflow-y: auto;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* On narrow screens, stack vertically */
+@media (max-width: 860px) {
+  .main-area {
+    flex-direction: column;
+    align-items: center;
+    height: auto;
+  }
+
+  .hand-panel-aside {
+    width: 100%;
+    max-width: 480px;
+    height: auto;
+    padding: 0 0.75rem 0.75rem;
+  }
 }
