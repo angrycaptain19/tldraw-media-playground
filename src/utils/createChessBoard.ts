@@ -1,42 +1,10 @@
 import { type Editor, createShapeId, toRichText } from 'tldraw'
+import { createChessPieces } from './createChessPieces'
 
 /**
- * Standard chess piece Unicode symbols.
- */
-const WHITE_PIECES: Record<string, string> = {
-  K: '♔',
-  Q: '♕',
-  R: '♖',
-  B: '♗',
-  N: '♘',
-  P: '♙',
-}
-const BLACK_PIECES: Record<string, string> = {
-  K: '♚',
-  Q: '♛',
-  R: '♜',
-  B: '♝',
-  N: '♞',
-  P: '♟',
-}
-
-/**
- * Starting layout for each row (rank 8 → rank 1, file a → h).
- * Format: "<side><type>" where side ∈ {w, b} and type ∈ {K,Q,R,B,N,P}.
- */
-const INITIAL_POSITION: (string | null)[][] = [
-  ['bR', 'bN', 'bB', 'bQ', 'bK', 'bB', 'bN', 'bR'], // rank 8
-  ['bP', 'bP', 'bP', 'bP', 'bP', 'bP', 'bP', 'bP'], // rank 7
-  [null, null, null, null, null, null, null, null],   // rank 6
-  [null, null, null, null, null, null, null, null],   // rank 5
-  [null, null, null, null, null, null, null, null],   // rank 4
-  [null, null, null, null, null, null, null, null],   // rank 3
-  ['wP', 'wP', 'wP', 'wP', 'wP', 'wP', 'wP', 'wP'], // rank 2
-  ['wR', 'wN', 'wB', 'wQ', 'wK', 'wB', 'wN', 'wR'], // rank 1
-]
-
-/**
- * Draws a complete chess board (8 × 8 squares + pieces) onto the tldraw canvas.
+ * Draws a complete chess board (8 × 8 squares + border) onto the tldraw canvas,
+ * then places all 32 chess pieces as individual, movable shapes on their
+ * starting squares.
  *
  * @param editor   tldraw Editor instance
  * @param originX  top-left X of the board in canvas coordinates (default: centred in viewport)
@@ -62,14 +30,6 @@ export function createChessBoard(
   for (let row = 0; row < 8; row++) {
     for (let col = 0; col < 8; col++) {
       const isLight = (row + col) % 2 === 0
-      const piece = INITIAL_POSITION[row][col]
-
-      let label = ''
-      if (piece) {
-        const side = piece[0]  // 'w' or 'b'
-        const type = piece[1]  // 'K','Q','R','B','N','P'
-        label = side === 'w' ? (WHITE_PIECES[type] ?? '') : (BLACK_PIECES[type] ?? '')
-      }
 
       shapes.push({
         id: createShapeId(),
@@ -85,10 +45,9 @@ export function createChessBoard(
           color: isLight ? 'white' : 'blue',
           dash: 'solid',
           size: 'm',
-          // Piece label rendered inside the square
-          richText: toRichText(label),
-          // Piece text colour contrasts with the square colour
-          labelColor: isLight ? 'black' : 'white',
+          // Empty squares — pieces are separate draggable shapes placed on top
+          richText: toRichText(''),
+          labelColor: 'black',
           align: 'middle',
           verticalAlign: 'middle',
           font: 'sans',
@@ -117,6 +76,9 @@ export function createChessBoard(
 
   editor.createShapes(shapes)
 
-  // ── 3. Zoom to fit the new board ──────────────────────────────────────
+  // ── 3. Place chess pieces as individual movable shapes ─────────────────
+  createChessPieces(editor, ox, oy, cellSize)
+
+  // ── 4. Zoom to fit the new board ──────────────────────────────────────
   editor.zoomToFit({ animation: { duration: 200 } })
 }
