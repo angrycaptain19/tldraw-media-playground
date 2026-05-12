@@ -1,0 +1,72 @@
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1rem;
+  height: 52px;
+  background: #1a1a2e;
+  color: #eee;
+  flex-shrink: 0;
+  border-bottom: 2px solid #16213e;
+  gap: 1rem;
+  z-index: 10;
+}
+
+.app-header__brand {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.app-header__icon {
+  font-size: 1.5rem;
+}
+
+.app-header__title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #e2e8f0;
+}
+
+.app-header__subtitle {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-left: 0.25rem;
+}
+
+.app-header__actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.app-header__btn {
+  padding: 0.35rem 0.9rem;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  background: #0f3460;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.app-header__btn:hover:not(:disabled) {
+  background: #1a5276;
+  border-color: #4b9cd3;
+}
+
+.app-header__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.app-header__btn--danger {
+  background: #3d1a1a;
+  border-color: #7b3535;
+}
+
+.app-header__btn--danger:hover:not(:disabled) {
+  background: #5c2424;
+  border-color: #e74c3c;
+}
