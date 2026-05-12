@@ -1,4 +1,5 @@
 import type { Editor } from 'tldraw'
+import { createChessBoard } from '../utils/createChessBoard'
 import './Header.css'
 
 interface HeaderProps {
@@ -6,6 +7,11 @@ interface HeaderProps {
 }
 
 export default function Header({ editor }: HeaderProps) {
+  function handleChessBoard() {
+    if (!editor) return
+    createChessBoard(editor)
+  }
+
   function handleExport() {
     if (!editor) return
     const snapshot = editor.getSnapshot()
@@ -34,6 +40,14 @@ export default function Header({ editor }: HeaderProps) {
         <span className="app-header__subtitle">Powered by tldraw</span>
       </div>
       <div className="app-header__actions">
+        <button
+          className="app-header__btn app-header__btn--chess"
+          onClick={handleChessBoard}
+          disabled={!editor}
+          title="Draw a chess board on the canvas"
+        >
+          ♟ Chess Board
+        </button>
         <button
           className="app-header__btn"
           onClick={handleExport}
