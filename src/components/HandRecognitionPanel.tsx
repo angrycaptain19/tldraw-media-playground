@@ -10,7 +10,7 @@
 // translation in ChessGame.tsx in a follow-up task.
 
 import { useState } from 'react'
-import { useHandRecognition, type HandData } from '../hooks/useHandRecognition'
+import { useHandRecognition, type HandData, GESTURE_FIST, GESTURE_OPEN_PALM, GESTURE_POINTING_UP } from '../hooks/useHandRecognition'
 import './HandRecognitionPanel.css'
 
 interface HandRecognitionPanelProps {
@@ -108,8 +108,15 @@ export default function HandRecognitionPanel({ onHandData }: HandRecognitionPane
                 <div key={i} className="hrp__hand-card">
                   <div className="hrp__hand-title">
                     {hand.handedness} hand
-                    {hand.indexExtended && <span className="hrp__badge hrp__badge--pointing">pointing</span>}
-                    {hand.pinchStrength > 0.7 && <span className="hrp__badge hrp__badge--pinch">pinch</span>}
+                    {hand.gesture === GESTURE_POINTING_UP && (
+                      <span className="hrp__badge hrp__badge--pointing">pointing</span>
+                    )}
+                    {hand.gesture === GESTURE_FIST && (
+                      <span className="hrp__badge hrp__badge--fist">grab</span>
+                    )}
+                    {hand.gesture === GESTURE_OPEN_PALM && (
+                      <span className="hrp__badge hrp__badge--open">release</span>
+                    )}
                   </div>
 
                   <div className="hrp__hand-row">
@@ -120,13 +127,14 @@ export default function HandRecognitionPanel({ onHandData }: HandRecognitionPane
                   </div>
 
                   <div className="hrp__hand-row">
-                    <span className="hrp__label">Pinch</span>
+                    <span className="hrp__label">Gesture</span>
                     <span className="hrp__value">
-                      <span
-                        className="hrp__pinch-bar"
-                        style={{ width: `${Math.round(hand.pinchStrength * 100)}%` }}
-                      />
-                      {Math.round(hand.pinchStrength * 100)}%
+                      <span className={`hrp__gesture-badge hrp__gesture-badge--${hand.gesture.toLowerCase().replace('_', '-')}`}>
+                        {hand.gesture}
+                      </span>
+                      <span className="hrp__gesture-score">
+                        {' '}{Math.round(hand.gestureScore * 100)}%
+                      </span>
                     </span>
                   </div>
                 </div>
@@ -138,13 +146,13 @@ export default function HandRecognitionPanel({ onHandData }: HandRecognitionPane
 
           {/* Usage hint */}
           <div className="hrp__hint">
-            <strong>Point</strong> your index finger at a square to hover it.
+            <strong>Pointing Up</strong> (index extended) to hover over a square.
             <br />
-            <strong>Pinch</strong> (index + thumb together) to pick up the piece.
+            <strong>Closed Fist</strong> (hold ~200 ms) to pick up the piece.
             <br />
-            <strong>Move</strong> your hand to drag it across the board.
+            <strong>Move</strong> your fist to drag the piece across the board.
             <br />
-            <strong>Release</strong> the pinch to drop on a valid square.
+            <strong>Open Palm</strong> (hold ~200 ms) to drop on a valid square.
             <br />
             <em>Green highlight = valid drop target</em>
           </div>

@@ -1,23 +1,22 @@
 // ─── useHandRecognition ───────────────────────────────────────────────────────
 // Browser-friendly hand-motion detection hook built on top of the
-// MediaPipe Tasks Vision `HandLandmarker` WASM runtime.
+// MediaPipe Tasks Vision `GestureRecognizer` WASM runtime.
+//
+// Upgraded from HandLandmarker → GestureRecognizer so the chess game can use
+// whole-hand gesture names ("Closed_Fist", "Open_Palm", "Pointing_Up") instead
+// of a raw pinch-distance heuristic.  The hook's public interface is unchanged —
+// callers receive the same HandData / DetectedHand shape, with `gesture` and
+// `gestureScore` added and `pinchStrength` deprecated (always 0).
 //
 // Usage:
 //   const { videoRef, canvasRef, handData, isRunning, isLoading, error, start, stop } =
 //     useHandRecognition({ onHandData });
-//
-// The hook:
-//  1. Lazily loads the HandLandmarker WASM bundle from the MediaPipe CDN.
-//  2. Opens the user's camera stream and attaches it to the provided <video>.
-//  3. Runs landmark detection on every animation frame while `isRunning`.
-//  4. Calls `onHandData` with structured landmark data so callers can
-//     translate gestures into chess moves (or anything else).
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  HandLandmarker,
+  GestureRecognizer,
   FilesetResolver,
-  type HandLandmarkerResult,
+  type GestureRecognizerResult,
   type NormalizedLandmark,
 } from '@mediapipe/tasks-vision'
 
@@ -44,8 +43,23 @@ export interface DetectedHand {
    */
   indexExtended: boolean
   /**
-   * Pinch strength 0-1: 1 when index tip and thumb tip are very close
-   * together, 0 when far apart.  Useful for "select piece" gestures.
+   * Named gesture classified by MediaPipe GestureRecognizer.
+   * Possible values: "None" | "Closed_Fist" | "Open_Palm" | "Pointing_Up" |
+   *   "Thumb_Down" | "Thumb_Up" | "Victory" | "ILoveYou"
+   *
+   * Chess gesture mapping:
+   *   "Pointing_Up"  → cursor / hover mode
+   *   "Closed_Fist"  → pick up the piece under the index tip
+   *   "Open_Palm"    → drop / release the held piece
+   */
+  gesture: string
+  /**
+   * Confidence score for the classified gesture (0–1).
+   */
+  gestureScore: number
+  /**
+   * @deprecated Use `gesture` instead.
+   * Always 0; retained for backwards compatibility only.
    */
   pinchStrength: number
 }
@@ -53,7 +67,7 @@ export interface DetectedHand {
 export interface HandData {
   hands: DetectedHand[]
   /** Raw MediaPipe result for advanced usage */
-  raw: HandLandmarkerResult
+  raw: GestureRecognizerResult
 }
 
 export interface UseHandRecognitionOptions {
@@ -63,7 +77,6 @@ export interface UseHandRecognitionOptions {
   maxHands?: number
   /**
    * Minimum confidence to consider a detection valid (default: 0.5).
-   * Increase for fewer false positives.
    */
   minDetectionConfidence?: number
   minTrackingConfidence?: number
@@ -88,36 +101,50 @@ export interface UseHandRecognitionReturn {
   stop: () => void
 }
 
-// ── Internal helpers ─────────────────────────────────────────────────────────
+// ── Constants ────────────────────────────────────────────────────────────────
 
 const WASM_BASE =
   'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm'
-const MODEL_URL =
-  'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
 
-/** Euclidean distance between two normalised landmarks */
-function dist(a: NormalizedLandmark, b: NormalizedLandmark): number {
-  const dx = a.x - b.x
-  const dy = a.y - b.y
-  const dz = (a.z ?? 0) - (b.z ?? 0)
-  return Math.sqrt(dx * dx + dy * dy + dz * dz)
+/**
+ * MediaPipe hosted gesture recognizer model (~10 MB; cached by the browser
+ * after the first download).  The bundle includes the hand landmark model
+ * internally so only one asset is needed.
+ */
+const MODEL_URL =
+  'https://storage.googleapis.com/mediapipe-models/gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task'
+
+// Gesture name constants exported for use by consumers
+export const GESTURE_NONE         = 'None'
+export const GESTURE_FIST         = 'Closed_Fist'
+export const GESTURE_OPEN_PALM    = 'Open_Palm'
+export const GESTURE_POINTING_UP  = 'Pointing_Up'
+
+// ── Internal helpers ─────────────────────────────────────────────────────────
+
+/** Canvas dot colour keyed by gesture name */
+function gestureColour(gesture: string): string {
+  switch (gesture) {
+    case GESTURE_FIST:        return '#ff4081'  // pink  → grabbing
+    case GESTURE_OPEN_PALM:   return '#4ade80'  // green → releasing
+    case GESTURE_POINTING_UP: return '#00e5ff'  // cyan  → cursor
+    default:                  return '#94a3b8'  // grey  → other / none
+  }
 }
 
 function buildDetectedHand(
   landmarks: NormalizedLandmark[],
   handedness: string,
+  gesture: string,
+  gestureScore: number,
 ): DetectedHand {
   const pts: HandPoint[] = landmarks.map(l => ({ x: l.x, y: l.y, z: l.z ?? 0 }))
 
   const indexTip = pts[8]
   const thumbTip = pts[4]
 
-  // Index extended: tip (8) above knuckle (5) - smaller y = higher on screen
+  // Index extended: tip (8) above knuckle (5) — smaller y = higher on screen
   const indexExtended = landmarks[8].y < landmarks[5].y
-
-  // Pinch: max pinch distance is roughly 0.3 (hand-relative)
-  const pinchDist = dist(landmarks[4], landmarks[8])
-  const pinchStrength = Math.max(0, 1 - pinchDist / 0.3)
 
   return {
     handedness,
@@ -125,7 +152,9 @@ function buildDetectedHand(
     indexTip,
     thumbTip,
     indexExtended,
-    pinchStrength,
+    gesture,
+    gestureScore,
+    pinchStrength: 0, // deprecated; gesture-based detection supersedes this
   }
 }
 
@@ -150,7 +179,7 @@ export function useHandRecognition(
   const [handData, setHandData] = useState<HandData | null>(null)
 
   // Stable refs so the rAF loop does not go stale
-  const landmarkerRef = useRef<HandLandmarker | null>(null)
+  const recognizerRef = useRef<GestureRecognizer | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const rafIdRef = useRef<number | null>(null)
   const runningRef = useRef(false)
@@ -175,16 +204,18 @@ export function useHandRecognition(
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
     for (const hand of data.hands) {
+      const colour = gestureColour(hand.gesture)
+
       for (const pt of hand.landmarks) {
         const cx = pt.x * canvas.width
         const cy = pt.y * canvas.height
         ctx.beginPath()
         ctx.arc(cx, cy, 5, 0, Math.PI * 2)
-        ctx.fillStyle = hand.handedness === 'Right' ? '#00e5ff' : '#ff4081'
+        ctx.fillStyle = colour
         ctx.fill()
       }
 
-      // Highlight index tip
+      // Highlight index tip with a larger ring
       const ix = hand.indexTip.x * canvas.width
       const iy = hand.indexTip.y * canvas.height
       ctx.beginPath()
@@ -193,11 +224,11 @@ export function useHandRecognition(
       ctx.lineWidth = 3
       ctx.stroke()
 
-      // Draw pinch strength indicator above index tip
-      const pinchPct = Math.round(hand.pinchStrength * 100)
+      // Draw gesture label above index tip
+      const label = `${hand.handedness}: ${hand.gesture}`
       ctx.font = 'bold 14px system-ui'
       ctx.fillStyle = '#fff'
-      ctx.fillText(`${hand.handedness} pinch: ${pinchPct}%`, ix - 40, iy - 18)
+      ctx.fillText(label, ix - 40, iy - 18)
     }
   }, [])
 
@@ -206,18 +237,21 @@ export function useHandRecognition(
   const detectLoop = useCallback(() => {
     if (!runningRef.current) return
     const video = videoRef.current
-    const landmarker = landmarkerRef.current
-    if (!landmarker || !video || video.readyState < 2) {
+    const recognizer = recognizerRef.current
+    if (!recognizer || !video || video.readyState < 2) {
       rafIdRef.current = requestAnimationFrame(detectLoop)
       return
     }
 
-    const result = landmarker.detectForVideo(video, performance.now())
+    const result = recognizer.recognizeForVideo(video, performance.now())
 
     const hands: DetectedHand[] = result.landmarks.map((lms, i) => {
       const handedness =
         result.handednesses[i]?.[0]?.categoryName ?? 'Unknown'
-      return buildDetectedHand(lms, handedness)
+      const topGesture   = result.gestures[i]?.[0]
+      const gesture      = topGesture?.categoryName ?? GESTURE_NONE
+      const gestureScore = topGesture?.score ?? 0
+      return buildDetectedHand(lms, handedness, gesture, gestureScore)
     })
 
     const data: HandData = { hands, raw: result }
@@ -236,10 +270,10 @@ export function useHandRecognition(
     setIsLoading(true)
 
     try {
-      // 1. Load WASM + model (cached after first call)
-      if (!landmarkerRef.current) {
+      // 1. Load WASM + gesture model (cached after first call)
+      if (!recognizerRef.current) {
         const vision = await FilesetResolver.forVisionTasks(WASM_BASE)
-        landmarkerRef.current = await HandLandmarker.createFromOptions(vision, {
+        recognizerRef.current = await GestureRecognizer.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: MODEL_URL,
             delegate: 'GPU',
@@ -310,8 +344,8 @@ export function useHandRecognition(
   useEffect(() => {
     return () => {
       stop()
-      landmarkerRef.current?.close()
-      landmarkerRef.current = null
+      recognizerRef.current?.close()
+      recognizerRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

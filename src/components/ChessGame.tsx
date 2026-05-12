@@ -14,6 +14,7 @@ import {
 } from '../chess'
 import { BOARD_THEMES, DEFAULT_THEME_ID, getTheme, getPieceSymbols } from './themes'
 import type { HandData } from '../hooks/useHandRecognition'
+import { GESTURE_FIST, GESTURE_OPEN_PALM } from '../hooks/useHandRecognition'
 import './ChessGame.css'
 
 function pieceSymbol(
@@ -84,9 +85,21 @@ interface HandDragState {
 
 const CELL_SIZE = 64
 
-// ── Pinch thresholds (hysteresis to avoid accidental drops) ──────────────────
-const PINCH_PICK_UP  = 0.72  // must be >= this to grab
-const PINCH_DROP     = 0.50  // must fall below this to release
+// ── Gesture-based pick-up / drop (GestureRecognizer — optimal approach) ──────────────
+//
+// Instead of a raw pinch-distance threshold, the hook now uses MediaPipe’s
+// GestureRecognizer model to classify the whole hand into named poses.
+// This is far more robust: lighting-independent, hand-size-independent,
+// and eliminates the partial-curl false-positive problem entirely.
+//
+//   “Pointing_Up”  → index finger extended → cursor / hover mode
+//   “Closed_Fist”  → deliberate grab pose  → pick up the hovered piece
+//   “Open_Palm”    → open hand             → release / drop the held piece
+//
+// A 6-frame temporal debounce (≈ 200 ms at 30 fps) prevents single-frame
+// noise from triggering accidental picks or drops.
+//
+const GESTURE_DWELL_FRAMES = 6   // consecutive frames required to commit
 
 interface ChessGameProps {
   /**
@@ -301,21 +314,29 @@ export default function ChessGame({ registerHandDataCallback }: ChessGameProps =
     }
   }
 
+
   // ── Hand tracking: process incoming HandData ──────────────────────────────
   //
-  // Strategy:
-  //  * Take the first detected hand's index tip position.
+  // Strategy (GestureRecognizer-based — optimal approach):
+  //  * Take the first detected hand’s index tip position.
   //  * Map normalised coords to a board square using the board element rect.
-  //  * When pinch strength rises above PINCH_PICK_UP and a friendly piece is
-  //    under the index tip -> lift it (handDrag).
-  //  * While pinching: update the ghost piece position and the target square.
-  //  * When pinch drops below PINCH_DROP -> attempt to drop on the target square.
+  //  * Gesture “Pointing_Up”  → cursor / hover; highlights the hovered square.
+  //  * Gesture “Closed_Fist”  → pick up the friendly piece on the hovered square.
+  //    Requires GESTURE_DWELL_FRAMES consecutive frames to commit (debounce).
+  //  * While dragging: the index tip tracks position regardless of gesture so
+  //    the ghost piece follows the hand smoothly.
+  //  * Gesture “Open_Palm”    → drop the held piece on the current target square.
+  //    Also requires GESTURE_DWELL_FRAMES consecutive frames to commit.
   //
-  // Camera is front-facing (selfie).  MediaPipe reports coordinates in the
-  // mirrored video space.  The panel flips the <video> via CSS scaleX(-1) so
+  // Camera is front-facing (selfie). MediaPipe reports coordinates in the
+  // mirrored video space. The panel flips the <video> via CSS scaleX(-1) so
   // the user sees themselves correctly, but raw landmark x=0 is still the
   // left edge of the physical feed (right hand side of the board from player
-  // perspective).  We flip x: boardX = 1 - landmark.x.
+  // perspective). We flip x: boardX = 1 - landmark.x.
+
+  // Dwell counters: how many consecutive frames we’ve seen each gesture
+  const grabCounterRef = useRef(0)
+  const dropCounterRef = useRef(0)
 
   const handHandlerRef = useRef<(data: HandData) => void>(() => {})
 
@@ -327,6 +348,9 @@ export default function ChessGame({ registerHandDataCallback }: ChessGameProps =
       const humanTurn = isHumanTurnRef.current
 
       if (data.hands.length === 0) {
+        // No hand visible — reset counters and cancel any in-progress drag
+        grabCounterRef.current = 0
+        dropCounterRef.current = 0
         if (currentHandDrag) {
           setHandDrag(null)
           setHandHovered(null)
@@ -335,14 +359,15 @@ export default function ChessGame({ registerHandDataCallback }: ChessGameProps =
       }
 
       const hand = data.hands[0]
-      const { indexTip, pinchStrength } = hand
+      const { indexTip, gesture } = hand
 
       // Mirror x: MediaPipe x=0 is the left edge of the (mirrored) camera feed.
       const mirroredX = 1 - indexTip.x
 
       const boardRect = boardRef.current.getBoundingClientRect()
 
-      // Map the normalised tip position onto the board rect
+      // Map the normalised tip position onto the board rect.
+      // We always track the index tip for cursor position, regardless of gesture.
       const tipPixelX = boardRect.left + mirroredX * boardRect.width
       const tipPixelY = boardRect.top  + indexTip.y * boardRect.height
 
@@ -354,10 +379,21 @@ export default function ChessGame({ registerHandDataCallback }: ChessGameProps =
       setHandHovered(hoveredSq)
 
       if (!currentHandDrag) {
-        // Not currently dragging — check for pick-up gesture
-        if (pinchStrength >= PINCH_PICK_UP && hoveredSq && humanTurn) {
+        // Not currently dragging — watch for a grab gesture
+
+        if (gesture === GESTURE_FIST) {
+          grabCounterRef.current += 1
+        } else {
+          grabCounterRef.current = 0
+        }
+        // Reset drop counter when not dragging
+        dropCounterRef.current = 0
+
+        // Commit the grab only after GESTURE_DWELL_FRAMES consecutive Closed_Fist frames
+        if (grabCounterRef.current >= GESTURE_DWELL_FRAMES && hoveredSq && humanTurn) {
           const piece = getPiece(currentGame.board, hoveredSq)
           if (piece && piece.color === currentGame.turn) {
+            grabCounterRef.current = 0  // reset so it doesn’t re-trigger
             setSelected(hoveredSq)
             setHandDrag({
               from: hoveredSq,
@@ -368,9 +404,19 @@ export default function ChessGame({ registerHandDataCallback }: ChessGameProps =
           }
         }
       } else {
-        // Currently dragging
-        if (pinchStrength < PINCH_DROP) {
-          // Release — attempt drop
+        // Currently dragging — watch for a release gesture
+
+        if (gesture === GESTURE_OPEN_PALM) {
+          dropCounterRef.current += 1
+        } else {
+          dropCounterRef.current = 0
+        }
+        // Reset grab counter while dragging
+        grabCounterRef.current = 0
+
+        if (dropCounterRef.current >= GESTURE_DWELL_FRAMES) {
+          // Commit the drop after GESTURE_DWELL_FRAMES consecutive Open_Palm frames
+          dropCounterRef.current = 0
           const target = currentHandDrag.targetSquare
           if (target && !sqEq(currentHandDrag.from, target)) {
             const moves = getMovesFrom(currentGame, currentHandDrag.from)
@@ -398,7 +444,7 @@ export default function ChessGame({ registerHandDataCallback }: ChessGameProps =
           }
           setHandDrag(null)
         } else {
-          // Still dragging — update position and target square
+          // Still dragging — update ghost piece position and target square
           setHandDrag(prev =>
             prev
               ? {
