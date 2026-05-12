@@ -11,15 +11,14 @@ import {
   requiresPromotion,
   scheduleAiMove,
 } from '../chess'
+import { BOARD_THEMES, DEFAULT_THEME_ID, getTheme, getPieceSymbols } from './themes'
 import './ChessGame.css'
 
-const PIECE_SYMBOLS: Record<Color, Record<PieceType, string>> = {
-  white: { K: '\u2654', Q: '\u2655', R: '\u2656', B: '\u2657', N: '\u2658', P: '\u2659' },
-  black: { K: '\u265a', Q: '\u265b', R: '\u265c', B: '\u265d', N: '\u265e', P: '\u265f' },
-}
-
-function pieceSymbol(piece: { type: PieceType; color: Color }): string {
-  return PIECE_SYMBOLS[piece.color][piece.type]
+function pieceSymbol(
+  piece: { type: PieceType; color: Color },
+  symbols: Record<Color, Record<PieceType, string>>,
+): string {
+  return symbols[piece.color][piece.type]
 }
 
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']
@@ -79,7 +78,12 @@ export default function ChessGame() {
   const [promotionPending, setPromotionPending] = useState<{ from: Square; to: Square } | null>(null)
   const boardRef = useRef<HTMLDivElement>(null)
 
-  // ── AI state ────────────────────────────────────────────────────────────────
+  // ── Theme state ──────────────────────────────────────────────────────────────
+  const [themeId, setThemeId] = useState(DEFAULT_THEME_ID)
+  const theme = getTheme(themeId)
+  const PIECE_SYMBOLS = getPieceSymbols(theme.pieceSet)
+
+  // ── AI state ──────────────────────────────────────────────────────────────────
   const [aiEnabled, setAiEnabled] = useState(true)
   const [aiColor, setAiColor] = useState<Color>('black')
   const [aiDifficulty, setAiDifficulty] = useState<AiDifficulty>('medium')
@@ -124,7 +128,7 @@ export default function ChessGame() {
     [game, executeMove],
   )
 
-  // ── Block human interaction when it is the AI's turn ──────────────────────
+  // ── Block human interaction when it is the AI's turn ─────────────────────
   const isHumanTurn =
     !aiEnabled ||
     game.turn !== aiColor ||
@@ -218,7 +222,7 @@ export default function ChessGame() {
     setPromotionPending(null)
   }
 
-  // ── AI: trigger when it is the AI's turn ────────────────────────────────
+  // ── AI: trigger when it is the AI's turn ─────────────────────────────────
   useEffect(() => {
     if (
       !aiEnabled ||
@@ -240,7 +244,7 @@ export default function ChessGame() {
     }
   }, [game, aiEnabled, aiColor, aiDifficulty])
 
-  // ── Undo: step back two plies when AI is enabled so it stays human's turn ─
+  // ── Undo: step back two plies when AI is enabled ──────────────────────────
   function handleUndo() {
     setSelected(null)
     if (!aiEnabled || game.history.length < 2) {
@@ -250,7 +254,7 @@ export default function ChessGame() {
     }
   }
 
-  // ── Labels & status ──────────────────────────────────────────────────────
+  // ── Labels & status ───────────────────────────────────────────────────────
   const aiIsThinking = aiEnabled && game.turn === aiColor &&
     game.status !== 'checkmate' && game.status !== 'stalemate' && game.status !== 'draw'
 
@@ -282,7 +286,16 @@ export default function ChessGame() {
   const dragPiece = drag ? getPiece(game.board, drag.from) : null
   const boardSize = CELL_SIZE * 8
 
-  const cssProp = { '--cell-size': CELL_SIZE + 'px', '--board-size': boardSize + 'px' } as React.CSSProperties
+  // ── Theme-driven CSS vars injected as inline style ────────────────────────
+  const cssProp = {
+    '--cell-size':    CELL_SIZE + 'px',
+    '--board-size':   boardSize + 'px',
+    '--sq-light':     theme.light,
+    '--sq-dark':      theme.dark,
+    '--sq-accent':    theme.accent,
+    '--sq-accent-dk': theme.accentDark,
+    '--board-border': theme.border,
+  } as React.CSSProperties
 
   return (
     <div className="chess-game" style={cssProp}>
@@ -291,7 +304,7 @@ export default function ChessGame() {
         <span>{statusText}</span>
       </div>
 
-      {/* AI controls */}
+      {/* Controls bar */}
       <div className="chess-ai-controls">
         <label className="chess-ai-toggle">
           <input
@@ -338,6 +351,20 @@ export default function ChessGame() {
             </label>
           </>
         )}
+
+        {/* Theme picker */}
+        <label className="chess-ai-label">
+          <span>Theme</span>
+          <select
+            className="chess-ai-select chess-theme-select"
+            value={themeId}
+            onChange={e => setThemeId(e.target.value)}
+          >
+            {BOARD_THEMES.map(t => (
+              <option key={t.id} value={t.id}>{t.label}</option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <div>
@@ -348,7 +375,11 @@ export default function ChessGame() {
             ))}
           </div>
 
-          <div ref={boardRef} className="chess-board" style={{ touchAction: 'none' }}>
+          <div
+            ref={boardRef}
+            className={['chess-board', theme.boardClass].filter(Boolean).join(' ')}
+            style={{ touchAction: 'none' }}
+          >
             {[7, 6, 5, 4, 3, 2, 1, 0].map(rank =>
               [0, 1, 2, 3, 4, 5, 6, 7].map(file => {
                 const sq: Square = { file, rank }
@@ -371,7 +402,12 @@ export default function ChessGame() {
                   isChkd ? 'chess-square--in-check' : '',
                 ].filter(Boolean).join(' ')
 
-                const pieceCls = 'chess-piece' + (isDragging ? ' chess-piece--dragging' : '')
+                const pieceCls = [
+                  'chess-piece',
+                  isDragging ? 'chess-piece--dragging' : '',
+                  theme.pieceSet === 'text'  ? 'chess-piece--text'  : '',
+                  theme.pieceSet === 'emoji' ? 'chess-piece--emoji' : '',
+                ].filter(Boolean).join(' ')
 
                 return (
                   <div key={key} className={squareCls} onClick={() => handleSquareClick(sq)}>
@@ -387,7 +423,7 @@ export default function ChessGame() {
                           handlePieceMouseDown({ clientX: t.clientX, clientY: t.clientY, preventDefault: () => e.preventDefault() } as any, sq)
                         }}
                       >
-                        {pieceSymbol(piece)}
+                        {pieceSymbol(piece, PIECE_SYMBOLS)}
                       </div>
                     )}
                   </div>
@@ -433,7 +469,7 @@ export default function ChessGame() {
           className="chess-drag-ghost"
           style={{ left: drag.currentX, top: drag.currentY }}
         >
-          {pieceSymbol(dragPiece)}
+          {pieceSymbol(dragPiece, PIECE_SYMBOLS)}
         </div>
       )}
 
