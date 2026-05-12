@@ -1,6 +1,7 @@
 // ─── ChessGame Component ─────────────────────────────────────────────────────
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
 import type { Color, GameState, Move, PieceType, Square } from '../chess/types'
+import type { AiDifficulty } from '../chess/ai'
 import {
   applyMove,
   createInitialGameState,
@@ -8,6 +9,7 @@ import {
   getMovesFrom,
   getPiece,
   requiresPromotion,
+  scheduleAiMove,
 } from '../chess'
 import './ChessGame.css'
 
@@ -43,6 +45,7 @@ type ChessAction =
   | { type: 'APPLY_MOVE'; move: Move }
   | { type: 'NEW_GAME' }
   | { type: 'UNDO' }
+  | { type: 'UNDO_TWO' }
 
 function chessReducer(state: GameState, action: ChessAction): GameState {
   switch (action.type) {
@@ -52,6 +55,13 @@ function chessReducer(state: GameState, action: ChessAction): GameState {
       if (state.history.length === 0) return state
       let s = createInitialGameState()
       for (const m of state.history.slice(0, -1)) s = applyMove(s, m)
+      return s
+    }
+    case 'UNDO_TWO': {
+      const targetLen = Math.max(0, state.history.length - 2)
+      if (targetLen === state.history.length) return state
+      let s = createInitialGameState()
+      for (const m of state.history.slice(0, targetLen)) s = applyMove(s, m)
       return s
     }
     default: return state
@@ -68,6 +78,12 @@ export default function ChessGame() {
   const [drag, setDrag] = useState<DragState | null>(null)
   const [promotionPending, setPromotionPending] = useState<{ from: Square; to: Square } | null>(null)
   const boardRef = useRef<HTMLDivElement>(null)
+
+  // ── AI state ────────────────────────────────────────────────────────────────
+  const [aiEnabled, setAiEnabled] = useState(true)
+  const [aiColor, setAiColor] = useState<Color>('black')
+  const [aiDifficulty, setAiDifficulty] = useState<AiDifficulty>('medium')
+  const aiThinkingRef = useRef(false)
 
   const legalMoves: Move[] = selected ? getMovesFrom(game, selected) : []
   const legalTargets = new Set(legalMoves.map(m => m.to.file + ',' + m.to.rank))
@@ -108,8 +124,17 @@ export default function ChessGame() {
     [game, executeMove],
   )
 
+  // ── Block human interaction when it is the AI's turn ──────────────────────
+  const isHumanTurn =
+    !aiEnabled ||
+    game.turn !== aiColor ||
+    game.status === 'checkmate' ||
+    game.status === 'stalemate' ||
+    game.status === 'draw'
+
   const handleSquareClick = useCallback(
     (sq: Square) => {
+      if (!isHumanTurn) return
       if (drag) return
       if (game.status === 'checkmate' || game.status === 'stalemate') return
       const piece = getPiece(game.board, sq)
@@ -121,11 +146,12 @@ export default function ChessGame() {
         if (piece && piece.color === game.turn) setSelected(sq)
       }
     },
-    [drag, game, selected, tryMove],
+    [isHumanTurn, drag, game, selected, tryMove],
   )
 
   const handlePieceMouseDown = useCallback(
     (e: React.MouseEvent, sq: Square) => {
+      if (!isHumanTurn) return
       if (game.status === 'checkmate' || game.status === 'stalemate') return
       const piece = getPiece(game.board, sq)
       if (!piece || piece.color !== game.turn) return
@@ -133,7 +159,7 @@ export default function ChessGame() {
       setSelected(sq)
       setDrag({ from: sq, currentX: e.clientX, currentY: e.clientY })
     },
-    [game],
+    [isHumanTurn, game],
   )
 
   useEffect(() => {
@@ -192,11 +218,47 @@ export default function ChessGame() {
     setPromotionPending(null)
   }
 
+  // ── AI: trigger when it is the AI's turn ────────────────────────────────
+  useEffect(() => {
+    if (
+      !aiEnabled ||
+      game.turn !== aiColor ||
+      game.status === 'checkmate' ||
+      game.status === 'stalemate' ||
+      game.status === 'draw' ||
+      aiThinkingRef.current
+    ) return
+
+    aiThinkingRef.current = true
+    const timer = scheduleAiMove(game, aiColor, aiDifficulty, (move) => {
+      aiThinkingRef.current = false
+      dispatch({ type: 'APPLY_MOVE', move })
+    })
+    return () => {
+      clearTimeout(timer)
+      aiThinkingRef.current = false
+    }
+  }, [game, aiEnabled, aiColor, aiDifficulty])
+
+  // ── Undo: step back two plies when AI is enabled so it stays human's turn ─
+  function handleUndo() {
+    setSelected(null)
+    if (!aiEnabled || game.history.length < 2) {
+      dispatch({ type: 'UNDO' })
+    } else {
+      dispatch({ type: 'UNDO_TWO' })
+    }
+  }
+
+  // ── Labels & status ──────────────────────────────────────────────────────
+  const aiIsThinking = aiEnabled && game.turn === aiColor &&
+    game.status !== 'checkmate' && game.status !== 'stalemate' && game.status !== 'draw'
+
   const turnLabel = game.turn === 'white' ? '\u2b1c White' : '\u2b1b Black'
-  let statusText = turnLabel + "'s turn"
+  let statusText = turnLabel + (aiIsThinking ? ' (AI thinking\u2026)' : "'s turn")
   let dotClass = ''
   if (game.status === 'check') {
-    statusText = turnLabel + ' is in CHECK!'
+    statusText = turnLabel + (aiIsThinking ? ' (AI in check\u2026)' : ' is in CHECK!')
     dotClass = 'chess-status__dot--check'
   } else if (game.status === 'checkmate') {
     const winner = game.turn === 'white' ? '\u2b1b Black' : '\u2b1c White'
@@ -227,6 +289,55 @@ export default function ChessGame() {
       <div className="chess-status">
         <div className={'chess-status__dot ' + dotClass} />
         <span>{statusText}</span>
+      </div>
+
+      {/* AI controls */}
+      <div className="chess-ai-controls">
+        <label className="chess-ai-toggle">
+          <input
+            type="checkbox"
+            checked={aiEnabled}
+            onChange={e => {
+              setAiEnabled(e.target.checked)
+              dispatch({ type: 'NEW_GAME' })
+              setSelected(null)
+            }}
+          />
+          <span>AI opponent</span>
+        </label>
+
+        {aiEnabled && (
+          <>
+            <label className="chess-ai-label">
+              <span>AI plays</span>
+              <select
+                className="chess-ai-select"
+                value={aiColor}
+                onChange={e => {
+                  setAiColor(e.target.value as Color)
+                  dispatch({ type: 'NEW_GAME' })
+                  setSelected(null)
+                }}
+              >
+                <option value="black">Black</option>
+                <option value="white">White</option>
+              </select>
+            </label>
+
+            <label className="chess-ai-label">
+              <span>Difficulty</span>
+              <select
+                className="chess-ai-select"
+                value={aiDifficulty}
+                onChange={e => setAiDifficulty(e.target.value as AiDifficulty)}
+              >
+                <option value="easy">Easy (depth 1)</option>
+                <option value="medium">Medium (depth 2)</option>
+                <option value="hard">Hard (depth 3)</option>
+              </select>
+            </label>
+          </>
+        )}
       </div>
 
       <div>
@@ -294,12 +405,15 @@ export default function ChessGame() {
       </div>
 
       <div className="chess-controls">
-        <button className="chess-btn" onClick={() => dispatch({ type: 'NEW_GAME' })}>
+        <button
+          className="chess-btn"
+          onClick={() => { dispatch({ type: 'NEW_GAME' }); setSelected(null) }}
+        >
           New Game
         </button>
         <button
           className="chess-btn"
-          onClick={() => { dispatch({ type: 'UNDO' }); setSelected(null) }}
+          onClick={handleUndo}
           disabled={game.history.length === 0}
         >
           Undo

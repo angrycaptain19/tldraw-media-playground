@@ -63,3 +63,52 @@
 .chess-btn:disabled { opacity:.4;cursor:not-allowed; }
 .chess-history { max-height:120px;overflow-y:auto;background:#16213e;border:1px solid #334155;border-radius:8px;padding:0.5rem 0.75rem;color:#94a3b8;font-size:0.78rem;font-family:monospace;width:var(--board-size,512px);box-sizing:border-box;line-height:1.7; }
 .chess-history span { color:#e2e8f0; }
+
+/* ── AI controls ───────────────────────────────────────────────────────────── */
+.chess-ai-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  background: #16213e;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 0.45rem 1rem;
+  width: var(--board-size, 512px);
+  box-sizing: border-box;
+}
+.chess-ai-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  cursor: pointer;
+  user-select: none;
+}
+.chess-ai-toggle input[type='checkbox'] {
+  accent-color: #4b9cd3;
+  width: 15px;
+  height: 15px;
+  cursor: pointer;
+}
+.chess-ai-label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #94a3b8;
+  font-size: 0.82rem;
+}
+.chess-ai-select {
+  background: #0f3460;
+  border: 1px solid #334155;
+  border-radius: 5px;
+  color: #e2e8f0;
+  font-size: 0.82rem;
+  padding: 0.2rem 0.4rem;
+  cursor: pointer;
+  outline: none;
+  transition: border-color .15s;
+}
+.chess-ai-select:hover, .chess-ai-select:focus { border-color: #4b9cd3; }

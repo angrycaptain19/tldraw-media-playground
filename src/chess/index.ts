@@ -22,3 +22,6 @@ export {
 export { initialBoard, cloneBoard, getPiece, findKing } from './board'
 
 export { allLegalMoves, getLegalMoves, isInCheck, findCheckers } from './moves'
+
+export { pickAiMove, scheduleAiMove } from './ai'
+export type { AiDifficulty } from './ai'
