@@ -61,6 +61,12 @@
   cursor: not-allowed;
 }
 
+.app-header__btn--active {
+  background: #1a5276;
+  border-color: #4b9cd3;
+  box-shadow: 0 0 0 2px rgba(75, 156, 211, 0.3);
+}
+
 .app-header__btn--chess {
   background: #1a3a1a;
   border-color: #2d6a2d;
@@ -69,6 +75,12 @@
 .app-header__btn--chess:hover:not(:disabled) {
   background: #245924;
   border-color: #4caf50;
+}
+
+.app-header__btn--chess.app-header__btn--active {
+  background: #245924;
+  border-color: #4caf50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.3);
 }
 
 .app-header__btn--danger {
