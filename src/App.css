@@ -27,7 +27,8 @@
   flex-shrink: 0;
   padding: 0.75rem 0.75rem 0.75rem 0;
   overflow-y: auto;
-  height: 100%;
+  height: auto;
+  align-self: flex-start;
   box-sizing: border-box;
 }
 
