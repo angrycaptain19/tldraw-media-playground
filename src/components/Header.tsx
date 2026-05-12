@@ -1,12 +1,15 @@
 import type { Editor } from 'tldraw'
+import type { AppMode } from '../App'
 import { createChessBoard } from '../utils/createChessBoard'
 import './Header.css'
 
 interface HeaderProps {
   editor: Editor | null
+  mode: AppMode
+  setMode: (mode: AppMode) => void
 }
 
-export default function Header({ editor }: HeaderProps) {
+export default function Header({ editor, mode, setMode }: HeaderProps) {
   function handleChessBoard() {
     if (!editor) return
     createChessBoard(editor)
@@ -41,29 +44,47 @@ export default function Header({ editor }: HeaderProps) {
       </div>
       <div className="app-header__actions">
         <button
-          className="app-header__btn app-header__btn--chess"
-          onClick={handleChessBoard}
-          disabled={!editor}
-          title="Draw a chess board on the canvas"
+          className={`app-header__btn app-header__btn--chess${mode === 'chess' ? ' app-header__btn--active' : ''}`}
+          onClick={() => setMode('chess')}
+          title="Play an interactive chess game"
         >
-          ♟ Chess Board
+          ♟ Play Chess
         </button>
         <button
-          className="app-header__btn"
-          onClick={handleExport}
-          disabled={!editor}
-          title="Download canvas as JSON"
+          className={`app-header__btn${mode === 'canvas' ? ' app-header__btn--active' : ''}`}
+          onClick={() => setMode('canvas')}
+          title="Switch to the free-draw canvas"
         >
-          ↓ Export
+          ✏ Canvas Mode
         </button>
-        <button
-          className="app-header__btn app-header__btn--danger"
-          onClick={handleClear}
-          disabled={!editor}
-          title="Clear all shapes"
-        >
-          ✕ Clear
-        </button>
+        {mode === 'canvas' && (
+          <>
+            <button
+              className="app-header__btn"
+              onClick={handleChessBoard}
+              disabled={!editor}
+              title="Draw a static chess board on the canvas"
+            >
+              ♙ Draw Board
+            </button>
+            <button
+              className="app-header__btn"
+              onClick={handleExport}
+              disabled={!editor}
+              title="Download canvas as JSON"
+            >
+              ↓ Export
+            </button>
+            <button
+              className="app-header__btn app-header__btn--danger"
+              onClick={handleClear}
+              disabled={!editor}
+              title="Clear all shapes"
+            >
+              ✕ Clear
+            </button>
+          </>
+        )}
       </div>
     </header>
   )
