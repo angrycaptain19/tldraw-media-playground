@@ -1,5 +1,6 @@
 // ─── ChessGame Component ─────────────────────────────────────────────────────
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react'
+import type { MutableRefObject } from 'react'
 import type { Color, GameState, Move, PieceType, Square } from '../chess/types'
 import type { AiDifficulty } from '../chess/ai'
 import {
@@ -12,6 +13,7 @@ import {
   scheduleAiMove,
 } from '../chess'
 import { BOARD_THEMES, DEFAULT_THEME_ID, getTheme, getPieceSymbols } from './themes'
+import type { HandData } from '../hooks/useHandRecognition'
 import './ChessGame.css'
 
 function pieceSymbol(
@@ -69,9 +71,32 @@ function chessReducer(state: GameState, action: ChessAction): GameState {
 
 interface DragState { from: Square; currentX: number; currentY: number }
 
+// ── Hand drag state: separate from mouse drag ─────────────────────────────────
+interface HandDragState {
+  /** Square the piece was picked up from */
+  from: Square
+  /** Current screen position of the index tip (px) — for the ghost piece */
+  screenX: number
+  screenY: number
+  /** Target square the piece would land on (highlighted on board) */
+  targetSquare: Square | null
+}
+
 const CELL_SIZE = 64
 
-export default function ChessGame() {
+// ── Pinch thresholds (hysteresis to avoid accidental drops) ──────────────────
+const PINCH_PICK_UP  = 0.72  // must be >= this to grab
+const PINCH_DROP     = 0.50  // must fall below this to release
+
+interface ChessGameProps {
+  /**
+   * Parent passes a ref whose `.current` we set to our hand-data handler.
+   * This avoids prop-drilling a callback that fires at 30+ fps.
+   */
+  registerHandDataCallback?: MutableRefObject<((data: HandData) => void) | null>
+}
+
+export default function ChessGame({ registerHandDataCallback }: ChessGameProps = {}) {
   const [game, dispatch] = useReducer(chessReducer, undefined, createInitialGameState)
   const [selected, setSelected] = useState<Square | null>(null)
   const [drag, setDrag] = useState<DragState | null>(null)
@@ -89,8 +114,27 @@ export default function ChessGame() {
   const [aiDifficulty, setAiDifficulty] = useState<AiDifficulty>('medium')
   const aiThinkingRef = useRef(false)
 
+  // ── Hand tracking state ───────────────────────────────────────────────────────
+  /** The board square that the hand index tip is currently hovering over */
+  const [handHovered, setHandHovered] = useState<Square | null>(null)
+  /** Active hand-drag: piece lifted via pinch */
+  const [handDrag, setHandDrag] = useState<HandDragState | null>(null)
+
+  // Refs for the hand handler closure (so it always sees fresh game/state)
+  const gameRef = useRef(game)
+  const handDragRef = useRef(handDrag)
+  const isHumanTurnRef = useRef(false)
+
+  useEffect(() => { gameRef.current = game }, [game])
+  useEffect(() => { handDragRef.current = handDrag }, [handDrag])
+
   const legalMoves: Move[] = selected ? getMovesFrom(game, selected) : []
   const legalTargets = new Set(legalMoves.map(m => m.to.file + ',' + m.to.rank))
+
+  // Legal moves from the hand-dragged piece (for highlighting valid drop targets)
+  const handDragLegalMoves: Move[] = handDrag ? getMovesFrom(game, handDrag.from) : []
+  const handDragLegalTargets = new Set(handDragLegalMoves.map(m => m.to.file + ',' + m.to.rank))
+
   const lastMove = game.history[game.history.length - 1] ?? null
 
   const checkedKingSquare: Square | null = (() => {
@@ -136,10 +180,13 @@ export default function ChessGame() {
     game.status === 'stalemate' ||
     game.status === 'draw'
 
+  useEffect(() => { isHumanTurnRef.current = isHumanTurn }, [isHumanTurn])
+
   const handleSquareClick = useCallback(
     (sq: Square) => {
       if (!isHumanTurn) return
       if (drag) return
+      if (handDrag) return
       if (game.status === 'checkmate' || game.status === 'stalemate') return
       const piece = getPiece(game.board, sq)
       if (selected) {
@@ -150,7 +197,7 @@ export default function ChessGame() {
         if (piece && piece.color === game.turn) setSelected(sq)
       }
     },
-    [isHumanTurn, drag, game, selected, tryMove],
+    [isHumanTurn, drag, handDrag, game, selected, tryMove],
   )
 
   const handlePieceMouseDown = useCallback(
@@ -254,6 +301,132 @@ export default function ChessGame() {
     }
   }
 
+  // ── Hand tracking: process incoming HandData ──────────────────────────────
+  //
+  // Strategy:
+  //  * Take the first detected hand's index tip position.
+  //  * Map normalised coords to a board square using the board element rect.
+  //  * When pinch strength rises above PINCH_PICK_UP and a friendly piece is
+  //    under the index tip -> lift it (handDrag).
+  //  * While pinching: update the ghost piece position and the target square.
+  //  * When pinch drops below PINCH_DROP -> attempt to drop on the target square.
+  //
+  // Camera is front-facing (selfie).  MediaPipe reports coordinates in the
+  // mirrored video space.  The panel flips the <video> via CSS scaleX(-1) so
+  // the user sees themselves correctly, but raw landmark x=0 is still the
+  // left edge of the physical feed (right hand side of the board from player
+  // perspective).  We flip x: boardX = 1 - landmark.x.
+
+  const handHandlerRef = useRef<(data: HandData) => void>(() => {})
+
+  useEffect(() => {
+    handHandlerRef.current = (data: HandData) => {
+      if (!boardRef.current) return
+      const currentGame = gameRef.current
+      const currentHandDrag = handDragRef.current
+      const humanTurn = isHumanTurnRef.current
+
+      if (data.hands.length === 0) {
+        if (currentHandDrag) {
+          setHandDrag(null)
+          setHandHovered(null)
+        }
+        return
+      }
+
+      const hand = data.hands[0]
+      const { indexTip, pinchStrength } = hand
+
+      // Mirror x: MediaPipe x=0 is the left edge of the (mirrored) camera feed.
+      const mirroredX = 1 - indexTip.x
+
+      const boardRect = boardRef.current.getBoundingClientRect()
+
+      // Map the normalised tip position onto the board rect
+      const tipPixelX = boardRect.left + mirroredX * boardRect.width
+      const tipPixelY = boardRect.top  + indexTip.y * boardRect.height
+
+      const file = Math.floor((tipPixelX - boardRect.left) / CELL_SIZE)
+      const rank = 7 - Math.floor((tipPixelY - boardRect.top) / CELL_SIZE)
+      const hoveredSq: Square | null =
+        file >= 0 && file < 8 && rank >= 0 && rank < 8 ? { file, rank } : null
+
+      setHandHovered(hoveredSq)
+
+      if (!currentHandDrag) {
+        // Not currently dragging — check for pick-up gesture
+        if (pinchStrength >= PINCH_PICK_UP && hoveredSq && humanTurn) {
+          const piece = getPiece(currentGame.board, hoveredSq)
+          if (piece && piece.color === currentGame.turn) {
+            setSelected(hoveredSq)
+            setHandDrag({
+              from: hoveredSq,
+              screenX: tipPixelX,
+              screenY: tipPixelY,
+              targetSquare: hoveredSq,
+            })
+          }
+        }
+      } else {
+        // Currently dragging
+        if (pinchStrength < PINCH_DROP) {
+          // Release — attempt drop
+          const target = currentHandDrag.targetSquare
+          if (target && !sqEq(currentHandDrag.from, target)) {
+            const moves = getMovesFrom(currentGame, currentHandDrag.from)
+            const isLegal = moves.some(m =>
+              m.to.file === target.file && m.to.rank === target.rank,
+            )
+            if (isLegal) {
+              if (requiresPromotion(currentGame, currentHandDrag.from, target)) {
+                const hasTarget = moves.some(
+                  m => m.to.file === target.file && m.to.rank === target.rank,
+                )
+                if (hasTarget) {
+                  setPromotionPending({ from: currentHandDrag.from, to: target })
+                }
+              } else {
+                const move = findMove(currentGame, currentHandDrag.from, target)
+                if (move) {
+                  dispatch({ type: 'APPLY_MOVE', move })
+                  setSelected(null)
+                }
+              }
+            }
+          } else if (target && sqEq(currentHandDrag.from, target)) {
+            setSelected(null)
+          }
+          setHandDrag(null)
+        } else {
+          // Still dragging — update position and target square
+          setHandDrag(prev =>
+            prev
+              ? {
+                  ...prev,
+                  screenX: tipPixelX,
+                  screenY: tipPixelY,
+                  targetSquare: hoveredSq,
+                }
+              : null,
+          )
+        }
+      }
+    }
+  })
+
+  // Register our stable callback with the parent ref
+  useEffect(() => {
+    if (!registerHandDataCallback) return
+    registerHandDataCallback.current = (data: HandData) => {
+      handHandlerRef.current(data)
+    }
+    return () => {
+      if (registerHandDataCallback.current === handHandlerRef.current) {
+        registerHandDataCallback.current = null
+      }
+    }
+  }, [registerHandDataCallback])
+
   // ── Labels & status ───────────────────────────────────────────────────────
   const aiIsThinking = aiEnabled && game.turn === aiColor &&
     game.status !== 'checkmate' && game.status !== 'stalemate' && game.status !== 'draw'
@@ -284,6 +457,7 @@ export default function ChessGame() {
   }
 
   const dragPiece = drag ? getPiece(game.board, drag.from) : null
+  const handDragPiece = handDrag ? getPiece(game.board, handDrag.from) : null
   const boardSize = CELL_SIZE * 8
 
   // ── Theme-driven CSS vars injected as inline style ────────────────────────
@@ -393,6 +567,16 @@ export default function ChessGame() {
                 const isChkd = checkedKingSquare !== null && sqEq(sq, checkedKingSquare)
                 const isDragging = drag !== null && sqEq(sq, drag.from)
 
+                // ── Hand tracking states ──────────────────────────────────────
+                const isHandHovered = handHovered !== null && sqEq(sq, handHovered)
+                const isHandDragging = handDrag !== null && sqEq(sq, handDrag.from)
+                const isHandDragLegal = handDrag !== null && handDragLegalTargets.has(key)
+                const isHandDropTarget =
+                  handDrag !== null &&
+                  handDrag.targetSquare !== null &&
+                  sqEq(sq, handDrag.targetSquare) &&
+                  handDragLegalTargets.has(key)
+
                 const squareCls = [
                   'chess-square',
                   isLight ? 'chess-square--light' : 'chess-square--dark',
@@ -400,11 +584,15 @@ export default function ChessGame() {
                   !isSel && isLastFrom ? 'chess-square--last-move-from' : '',
                   !isSel && isLastTo ? 'chess-square--last-move-to' : '',
                   isChkd ? 'chess-square--in-check' : '',
+                  isHandHovered && !handDrag ? 'chess-square--hand-hover' : '',
+                  isHandDragging ? 'chess-square--hand-dragging' : '',
+                  isHandDropTarget ? 'chess-square--hand-drop-target' : '',
+                  !isHandDropTarget && isHandDragLegal ? 'chess-square--hand-drag-legal' : '',
                 ].filter(Boolean).join(' ')
 
                 const pieceCls = [
                   'chess-piece',
-                  isDragging ? 'chess-piece--dragging' : '',
+                  isDragging || isHandDragging ? 'chess-piece--dragging' : '',
                   theme.pieceSet === 'text'  ? 'chess-piece--text'  : '',
                   theme.pieceSet === 'emoji' ? 'chess-piece--emoji' : '',
                 ].filter(Boolean).join(' ')
@@ -464,12 +652,23 @@ export default function ChessGame() {
         </div>
       )}
 
+      {/* Mouse/touch drag ghost */}
       {drag && dragPiece && (
         <div
           className="chess-drag-ghost"
           style={{ left: drag.currentX, top: drag.currentY }}
         >
           {pieceSymbol(dragPiece, PIECE_SYMBOLS)}
+        </div>
+      )}
+
+      {/* Hand drag ghost — follows the index tip */}
+      {handDrag && handDragPiece && (
+        <div
+          className="chess-drag-ghost chess-drag-ghost--hand"
+          style={{ left: handDrag.screenX, top: handDrag.screenY }}
+        >
+          {pieceSymbol(handDragPiece, PIECE_SYMBOLS)}
         </div>
       )}
 
