@@ -14,7 +14,7 @@ import {
 } from '../chess'
 import { BOARD_THEMES, DEFAULT_THEME_ID, getTheme, getPieceSymbols } from './themes'
 import type { HandData } from '../hooks/useHandRecognition'
-import { GESTURE_FIST, GESTURE_OPEN_PALM } from '../hooks/useHandRecognition'
+import { GESTURE_FIST, GESTURE_OPEN_PALM, GESTURE_NONE } from '../hooks/useHandRecognition'
 import type { VoiceCommand } from '../hooks/useVoiceRecognition'
 import './ChessGame.css'
 
@@ -94,10 +94,12 @@ const CELL_SIZE = 64
 //   "Closed_Fist"  → deliberate grab pose  → pick up the hovered piece
 //   "Open_Palm"    → open hand             → release / drop the held piece
 //
-// A 6-frame temporal debounce (≈ 200 ms at 30 fps) prevents single-frame
-// noise from triggering accidental picks or drops.
+// Separate dwell thresholds for grab vs. release:
+//   GRAB  — higher threshold prevents accidental picks (6 frames ≈ 200 ms @ 30 fps)
+//   DROP  — lower threshold makes it much easier to let go (3 frames ≈ 100 ms @ 30 fps)
 //
-const GESTURE_DWELL_FRAMES = 6  // consecutive frames required to commit
+const GESTURE_GRAB_DWELL_FRAMES = 6   // consecutive Closed_Fist frames to pick up a piece
+const GESTURE_DROP_DWELL_FRAMES = 3   // consecutive Open_Palm frames to drop a piece
 
 interface ChessGameProps {
   /**
@@ -323,11 +325,11 @@ export default function ChessGame({ registerHandDataCallback, registerVoiceComma
   //  * Take the first detected hand's index tip position.
   //  * Map normalised coords to a board square using the board element rect.
   //  * Gesture "Closed_Fist"  → pick up the friendly piece on the hovered square.
-  //    Requires GESTURE_DWELL_FRAMES consecutive frames to commit (debounce).
+  //    Requires GESTURE_GRAB_DWELL_FRAMES consecutive frames to commit (debounce).
   //  * While dragging: the index tip tracks position regardless of gesture so
   //    the ghost piece follows the hand smoothly.
   //  * Gesture "Open_Palm"    → drop the held piece on the current target square.
-  //    Also requires GESTURE_DWELL_FRAMES consecutive frames to commit.
+  //    Requires only GESTURE_DROP_DWELL_FRAMES consecutive frames (lower threshold = easier release).
   //
   // Camera is front-facing (selfie). MediaPipe reports coordinates in the
   // mirrored video space. The panel flips the <video> via CSS scaleX(-1) so
@@ -349,10 +351,37 @@ export default function ChessGame({ registerHandDataCallback, registerVoiceComma
       const humanTurn = isHumanTurnRef.current
 
       if (data.hands.length === 0) {
-        // No hand visible — reset counters and cancel any in-progress drag
+        // No hand visible — reset grab counter.
+        // If a piece was being dragged, treat disappearance as a drop attempt on
+        // the last known target square (natural "let go" behaviour).
         grabCounterRef.current = 0
         dropCounterRef.current = 0
         if (currentHandDrag) {
+          const target = currentHandDrag.targetSquare
+          if (target && !sqEq(currentHandDrag.from, target)) {
+            const moves = getMovesFrom(currentGame, currentHandDrag.from)
+            const isLegal = moves.some(m =>
+              m.to.file === target.file && m.to.rank === target.rank,
+            )
+            if (isLegal) {
+              if (requiresPromotion(currentGame, currentHandDrag.from, target)) {
+                const hasTarget = moves.some(
+                  m => m.to.file === target.file && m.to.rank === target.rank,
+                )
+                if (hasTarget) {
+                  setPromotionPending({ from: currentHandDrag.from, to: target })
+                }
+              } else {
+                const move = findMove(currentGame, currentHandDrag.from, target)
+                if (move) {
+                  dispatch({ type: 'APPLY_MOVE', move })
+                  setSelected(null)
+                }
+              }
+            }
+          } else if (target && sqEq(currentHandDrag.from, target)) {
+            setSelected(null)
+          }
           setHandDrag(null)
           setHandHovered(null)
         }
@@ -390,8 +419,8 @@ export default function ChessGame({ registerHandDataCallback, registerVoiceComma
         // Reset drop counter when not dragging
         dropCounterRef.current = 0
 
-        // Commit the grab only after GESTURE_DWELL_FRAMES consecutive Closed_Fist frames
-        if (grabCounterRef.current >= GESTURE_DWELL_FRAMES && hoveredSq && humanTurn) {
+        // Commit the grab only after GESTURE_GRAB_DWELL_FRAMES consecutive Closed_Fist frames
+        if (grabCounterRef.current >= GESTURE_GRAB_DWELL_FRAMES && hoveredSq && humanTurn) {
           const piece = getPiece(currentGame.board, hoveredSq)
           if (piece && piece.color === currentGame.turn) {
             grabCounterRef.current = 0  // reset so it doesn't re-trigger
@@ -407,7 +436,14 @@ export default function ChessGame({ registerHandDataCallback, registerVoiceComma
       } else {
         // Currently dragging — watch for a release gesture
 
+        // Open_Palm is the primary release gesture.  To make releasing feel natural,
+        // any non-Fist, non-None gesture also increments the drop counter, so a partial
+        // opening of the hand (e.g. mid-transition) counts toward releasing the piece.
         if (gesture === GESTURE_OPEN_PALM) {
+          // Definitive open hand — count faster so a clear palm releases immediately
+          dropCounterRef.current += 2
+        } else if (gesture !== GESTURE_FIST && gesture !== GESTURE_NONE) {
+          // Any other recognisable gesture (e.g. Pointing_Up, Victory) also counts
           dropCounterRef.current += 1
         } else {
           dropCounterRef.current = 0
@@ -415,8 +451,8 @@ export default function ChessGame({ registerHandDataCallback, registerVoiceComma
         // Reset grab counter while dragging
         grabCounterRef.current = 0
 
-        if (dropCounterRef.current >= GESTURE_DWELL_FRAMES) {
-          // Commit the drop after GESTURE_DWELL_FRAMES consecutive Open_Palm frames
+        if (dropCounterRef.current >= GESTURE_DROP_DWELL_FRAMES) {
+          // Commit the drop after reaching GESTURE_DROP_DWELL_FRAMES accumulated frames
           dropCounterRef.current = 0
           const target = currentHandDrag.targetSquare
           if (target && !sqEq(currentHandDrag.from, target)) {
