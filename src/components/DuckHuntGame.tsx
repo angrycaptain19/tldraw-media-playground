@@ -427,7 +427,7 @@ function NesDuckSprite({
 // Renders the classic Duck Hunt layered backdrop:
 //   1. Flat NES-palette sky (handled in CSS)
 //   2. Three pixel-art clouds at fixed NES positions
-//   3. Tree-line silhouette (dark green pyramid trees across left ~55%)
+//   3. Foreground trees (separate layer, on top of ducks — birds can hide in canopy)
 //   4. Hill + house silhouette on the right
 //   5. Foreground grass strip (handled in CSS + NesScenery bottom rows)
 //   6. Four pixel-art bushes at fixed positions on the ground strip
@@ -459,89 +459,118 @@ function NesCloud({ x, y, scale = 1 }: { x: string; y: string; scale?: number })
   )
 }
 
-/** NES tree-line + hill + house silhouette — full-width SVG layer */
-function NesScenery() {
-  // NES Duck Hunt palette colors
-  const TREE_DK  = '#006800'  // dark tree silhouette
-  const TREE_LT  = '#00A800'  // lighter tree highlight
+// ── NES Background Scenery (hill + house, behind ducks) ───────────────────────
+// Uses preserveAspectRatio="none" so the SVG always fills the sky container.
+// viewBox is 256x144 (16:9). All scenery is anchored to y=144 (the "ground").
+
+/** NES background layer: hill silhouette + house — drawn behind birds */
+function NesBackground() {
   const HILL     = '#00A800'  // hill green
+  const HILL_DK  = '#006800'  // darker hill edge
   const HOUSE_WL = '#D8B070'  // house wall (tan/cream)
   const HOUSE_RF = '#A83000'  // house roof (dark red)
   const HOUSE_WN = '#5C94FC'  // window (NES sky-blue)
 
+  // Hill occupies the right ~40% of screen.
+  // Stepped rise from x=150 up to x=220, then flat to x=256.
+  // All rects extend to y=144 so there is no floating gap.
   return (
     <svg
       className="dh-nes-scenery"
       width="100%"
       height="100%"
-      viewBox="0 0 256 192"
-      preserveAspectRatio="xMidYMax meet"
+      viewBox="0 0 256 144"
+      preserveAspectRatio="none"
       aria-hidden
       shapeRendering="crispEdges"
       style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1 }}
     >
-      {/* ── Tree trunks ── */}
-      <rect x={14}  y={148} width={6}  height={20} fill={TREE_DK} />
-      <rect x={38}  y={144} width={8}  height={24} fill={TREE_DK} />
-      <rect x={66}  y={150} width={6}  height={18} fill={TREE_DK} />
-      <rect x={92}  y={146} width={8}  height={22} fill={TREE_DK} />
-      <rect x={118} y={148} width={6}  height={20} fill={TREE_DK} />
+      {/* ── Hill — gentle stepped rise anchored to ground (y=144) ── */}
+      <rect x={150} y={128} width={106} height={16} fill={HILL} />
+      <rect x={162} y={120} width={94}  height={8}  fill={HILL} />
+      <rect x={176} y={112} width={80}  height={8}  fill={HILL} />
+      <rect x={192} y={104} width={64}  height={8}  fill={HILL} />
+      <rect x={208} y={96}  width={48}  height={8}  fill={HILL} />
+      <rect x={220} y={88}  width={36}  height={56} fill={HILL} />
+      {/* Dark left-edge pixels for depth */}
+      <rect x={150} y={128} width={4}   height={16} fill={HILL_DK} />
+      <rect x={162} y={120} width={4}   height={8}  fill={HILL_DK} />
+      <rect x={176} y={112} width={4}   height={8}  fill={HILL_DK} />
+      <rect x={192} y={104} width={4}   height={8}  fill={HILL_DK} />
+      <rect x={208} y={96}  width={4}   height={8}  fill={HILL_DK} />
+      <rect x={220} y={88}  width={4}   height={8}  fill={HILL_DK} />
 
-      {/* ── Tree A (leftmost, ~x=2) ── */}
-      <rect x={2}   y={124} width={30} height={24} fill={TREE_DK} />
-      <rect x={4}   y={116} width={26} height={8}  fill={TREE_DK} />
-      <rect x={6}   y={108} width={22} height={8}  fill={TREE_DK} />
-      <rect x={8}   y={100} width={18} height={8}  fill={TREE_DK} />
-      <rect x={10}  y={100} width={12} height={8}  fill={TREE_LT} />
-      {/* ── Tree B (~x=28) ── */}
-      <rect x={26}  y={120} width={34} height={28} fill={TREE_DK} />
-      <rect x={28}  y={112} width={30} height={8}  fill={TREE_DK} />
-      <rect x={32}  y={104} width={22} height={8}  fill={TREE_DK} />
-      <rect x={34}  y={96}  width={18} height={8}  fill={TREE_DK} />
-      <rect x={36}  y={96}  width={12} height={8}  fill={TREE_LT} />
-      {/* ── Tree C (~x=56) ── */}
-      <rect x={54}  y={128} width={28} height={20} fill={TREE_DK} />
-      <rect x={56}  y={120} width={24} height={8}  fill={TREE_DK} />
-      <rect x={58}  y={112} width={20} height={8}  fill={TREE_DK} />
-      <rect x={60}  y={104} width={16} height={8}  fill={TREE_DK} />
-      <rect x={62}  y={104} width={10} height={8}  fill={TREE_LT} />
-      {/* ── Tree D (~x=82) ── */}
-      <rect x={80}  y={122} width={34} height={26} fill={TREE_DK} />
-      <rect x={82}  y={114} width={30} height={8}  fill={TREE_DK} />
-      <rect x={86}  y={106} width={22} height={8}  fill={TREE_DK} />
-      <rect x={88}  y={98}  width={18} height={8}  fill={TREE_DK} />
-      <rect x={90}  y={98}  width={12} height={8}  fill={TREE_LT} />
-      {/* ── Tree E (shorter, ~x=108) ── */}
-      <rect x={108} y={132} width={26} height={16} fill={TREE_DK} />
-      <rect x={110} y={124} width={22} height={8}  fill={TREE_DK} />
-      <rect x={112} y={116} width={18} height={8}  fill={TREE_DK} />
-      <rect x={114} y={108} width={12} height={8}  fill={TREE_DK} />
-      <rect x={116} y={108} width={8}  height={8}  fill={TREE_LT} />
-
-      {/* ── Hill silhouette (right side, x=128–256) ── */}
-      <rect x={128} y={140} width={128} height={52} fill={HILL} />
-      <rect x={138} y={132} width={118} height={8}  fill={HILL} />
-      <rect x={150} y={124} width={106} height={8}  fill={HILL} />
-      <rect x={164} y={116} width={92}  height={8}  fill={HILL} />
-      <rect x={180} y={108} width={76}  height={8}  fill={HILL} />
-      <rect x={194} y={100} width={62}  height={8}  fill={HILL} />
-      <rect x={206} y={92}  width={50}  height={8}  fill={HILL} />
-
-      {/* ── House on hill (pixel-art, NES style) ── */}
-      {/* Main house body */}
-      <rect x={198} y={68}  width={48} height={32} fill={HOUSE_WL} />
-      {/* Roof tiers (stepped) */}
-      <rect x={200} y={60}  width={44} height={8}  fill={HOUSE_RF} />
-      <rect x={204} y={52}  width={36} height={8}  fill={HOUSE_RF} />
-      <rect x={208} y={44}  width={28} height={8}  fill={HOUSE_RF} />
-      <rect x={212} y={36}  width={20} height={8}  fill={HOUSE_RF} />
-      <rect x={216} y={28}  width={12} height={8}  fill={HOUSE_RF} />
-      {/* Left window */}
-      <rect x={202} y={72}  width={10} height={10} fill={HOUSE_WN} />
-      {/* Right window */}
-      <rect x={232} y={72}  width={10} height={10} fill={HOUSE_WN} />
+      {/* ── House on hill ── */}
+      <rect x={224} y={64}  width={28} height={28} fill={HOUSE_WL} />
+      {/* Roof (stepped pyramid) */}
+      <rect x={222} y={56}  width={32} height={8}  fill={HOUSE_RF} />
+      <rect x={226} y={48}  width={24} height={8}  fill={HOUSE_RF} />
+      <rect x={230} y={40}  width={16} height={8}  fill={HOUSE_RF} />
+      <rect x={234} y={32}  width={8}  height={8}  fill={HOUSE_RF} />
+      {/* Windows */}
+      <rect x={226} y={68}  width={8}  height={8}  fill={HOUSE_WN} />
+      <rect x={240} y={68}  width={8}  height={8}  fill={HOUSE_WN} />
       {/* Door */}
-      <rect x={217} y={80}  width={10} height={20} fill={HOUSE_RF} />
+      <rect x={234} y={76}  width={8}  height={16} fill={HOUSE_RF} />
+    </svg>
+  )
+}
+
+// ── NES Foreground Trees (rendered in front of ducks) ─────────────────────────
+// Higher z-index than ducks so birds can partially hide in the canopy.
+// Trunks extend all the way to y=144 (the ground) — no floating.
+
+/** NES foreground trees — drawn on top of ducks so birds can hide in them */
+function NesForegroundTrees() {
+  const TREE_DK  = '#006800'  // dark outline / trunk
+  const TREE_LT  = '#00A800'  // lighter canopy fill
+
+  return (
+    <svg
+      className="dh-nes-scenery dh-nes-foreground-trees"
+      width="100%"
+      height="100%"
+      viewBox="0 0 256 144"
+      preserveAspectRatio="none"
+      aria-hidden
+      shapeRendering="crispEdges"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 8 }}
+    >
+      {/* ── Tree A — tall, ~x=32, firmly grounded ── */}
+      {/* Trunk to ground */}
+      <rect x={28}  y={108} width={8}  height={36} fill={TREE_DK} />
+      {/* Canopy tiers (wide at bottom, narrowing upward) */}
+      <rect x={10}  y={100} width={44} height={8}  fill={TREE_DK} />
+      <rect x={12}  y={100} width={40} height={8}  fill={TREE_LT} />
+      <rect x={12}  y={92}  width={40} height={8}  fill={TREE_DK} />
+      <rect x={14}  y={92}  width={36} height={8}  fill={TREE_LT} />
+      <rect x={14}  y={84}  width={36} height={8}  fill={TREE_DK} />
+      <rect x={16}  y={84}  width={32} height={8}  fill={TREE_LT} />
+      <rect x={16}  y={76}  width={32} height={8}  fill={TREE_DK} />
+      <rect x={18}  y={76}  width={28} height={8}  fill={TREE_LT} />
+      <rect x={20}  y={68}  width={24} height={8}  fill={TREE_DK} />
+      <rect x={22}  y={68}  width={20} height={8}  fill={TREE_LT} />
+      <rect x={24}  y={60}  width={16} height={8}  fill={TREE_DK} />
+      <rect x={26}  y={60}  width={12} height={8}  fill={TREE_LT} />
+      {/* Top knob */}
+      <rect x={28}  y={52}  width={8}  height={8}  fill={TREE_LT} />
+
+      {/* ── Tree B — medium, ~x=96, firmly grounded ── */}
+      {/* Trunk */}
+      <rect x={92}  y={112} width={8}  height={32} fill={TREE_DK} />
+      {/* Canopy tiers */}
+      <rect x={76}  y={104} width={40} height={8}  fill={TREE_DK} />
+      <rect x={78}  y={104} width={36} height={8}  fill={TREE_LT} />
+      <rect x={78}  y={96}  width={36} height={8}  fill={TREE_DK} />
+      <rect x={80}  y={96}  width={32} height={8}  fill={TREE_LT} />
+      <rect x={80}  y={88}  width={32} height={8}  fill={TREE_DK} />
+      <rect x={82}  y={88}  width={28} height={8}  fill={TREE_LT} />
+      <rect x={84}  y={80}  width={24} height={8}  fill={TREE_DK} />
+      <rect x={86}  y={80}  width={20} height={8}  fill={TREE_LT} />
+      <rect x={88}  y={72}  width={16} height={8}  fill={TREE_DK} />
+      <rect x={90}  y={72}  width={12} height={8}  fill={TREE_LT} />
+      {/* Top knob */}
+      <rect x={92}  y={64}  width={8}  height={8}  fill={TREE_LT} />
     </svg>
   )
 }
@@ -1159,8 +1188,11 @@ export default function DuckHuntGame() {
         <NesCloud x="46%" y="18%" scale={0.9} />
         <NesCloud x="72%" y="7%"  scale={1.0} />
 
-        {/* NES layered scenery: tree line, hill, house — full-width SVG */}
-        <NesScenery />
+        {/* NES background: hill + house, behind ducks */}
+        <NesBackground />
+
+        {/* NES foreground trees: on top of ducks so birds can hide in canopy */}
+        <NesForegroundTrees />
 
         {/* Pause overlay */}
         {paused && phase === 'playing' && (
