@@ -60,7 +60,7 @@ let shotEffectIdCounter = 0
 
 const BIRDS_PER_ROUND  = 10           // total birds each round
 const SHOTS_PER_BIRD   = 3            // shots per individual duck / pair
-const DUCK_SIZE        = 52           // px — rendered duck sprite
+const DUCK_SIZE        = 48           // px — NES pixel sprite (16 px × 3 scale)
 const DUCK_SPEED_BASE  = 2.0          // px/frame at round 1
 const DUCK_SPEED_INC   = 0.35         // extra px/frame per round
 const POINTS_PER_DUCK  = 1000         // base score (+ round bonus)
@@ -119,23 +119,333 @@ function makeClay(skyW: number, skyH: number, round: number, index: number): Duc
   }
 }
 
+// ── NES-accurate Duck Color Palettes ────────────────────────────────────────
+//
+//  The original NES Duck Hunt used three distinct mallard color schemes:
+//    variant 0 (Game A):  green body, blue-iridescent head, white collar
+//    variant 1 (Game B):  brown/tan body, dark-brown head, white collar
+//    variant 2 (alt):     black body, black head (dark variant for higher rounds)
+//
+//  Each variant has 3 wing-flap frames: wing-up / wing-mid / wing-down.
+//  A separate "falling" pose (wings spread wide) is used when the duck is hit.
+//  All sprites are drawn on a 16×16 NES pixel grid, rendered at 3× scale (48px).
+//  shapeRendering="crispEdges" + CSS image-rendering:pixelated gives the blocky
+//  pixel-art look faithful to the original hardware output.
+
+type DuckVariant = 0 | 1 | 2  // 0=green, 1=brown, 2=black
+
+interface DuckPalette {
+  body:    string  // main body / wing color
+  bodyDk:  string  // dark body shading
+  head:    string  // head / neck color
+  headDk:  string  // dark head shading
+  collar:  string  // white collar ring
+  bill:    string  // bill/beak color
+  feet:    string  // feet/leg color
+  eye:     string  // eye white
+  eyePup:  string  // pupil
+  outline: string  // pixel outline / shadow
+}
+
+const DUCK_PALETTES: DuckPalette[] = [
+  // 0 — Classic green mallard (Game A)
+  {
+    body:    '#3CB054',  // NES bright green
+    bodyDk:  '#1A6B2A',  // dark green
+    head:    '#1C7A8C',  // iridescent teal-blue
+    headDk:  '#0E4D5A',  // dark teal
+    collar:  '#E8E8E8',  // white collar
+    bill:    '#D4A020',  // golden-yellow bill
+    feet:    '#D4A020',  // matching feet
+    eye:     '#F0F0F0',
+    eyePup:  '#101010',
+    outline: '#101010',
+  },
+  // 1 — Brown mallard (Game B second duck)
+  {
+    body:    '#B87040',  // NES tan-brown
+    bodyDk:  '#7A4020',  // dark brown
+    head:    '#7A4020',  // chocolate-brown head
+    headDk:  '#3C1A00',  // very dark brown
+    collar:  '#E8E8D0',  // cream collar
+    bill:    '#C8A000',  // amber bill
+    feet:    '#C8A000',
+    eye:     '#F0F0F0',
+    eyePup:  '#101010',
+    outline: '#101010',
+  },
+  // 2 — Dark/black duck (alternate high-round variant)
+  {
+    body:    '#404858',  // dark slate
+    bodyDk:  '#202430',  // near-black
+    head:    '#202430',  // dark head
+    headDk:  '#101018',
+    collar:  '#C8C8D8',  // pale collar
+    bill:    '#B09000',  // dark-gold bill
+    feet:    '#B09000',
+    eye:     '#E8E8E8',
+    eyePup:  '#101010',
+    outline: '#101010',
+  },
+]
+
+// ── Pixel helpers ─────────────────────────────────────────────────────────────
+// We draw each sprite on a virtual 16×16 grid.  Each "pixel" is one 3×3 rect
+// on the final 48×48 SVG (scale=3).
+
+const NES_S = 3  // pixel scale
+const NES_W = 16 // NES sprite width
+const NES_H = 16 // NES sprite height
+
+/** Render one NES-pixel at grid (col, row) */
+function px(col: number, row: number, fill: string, key: string | number) {
+  return (
+    <rect
+      key={key}
+      x={col * NES_S}
+      y={row * NES_S}
+      width={NES_S}
+      height={NES_S}
+      fill={fill}
+    />
+  )
+}
+
+/** Render a horizontal run of same-color pixels */
+function row(r: number, colStart: number, colEnd: number, fill: string, keyPfx: string) {
+  const rects = []
+  for (let c = colStart; c <= colEnd; c++) {
+    rects.push(px(c, r, fill, `${keyPfx}-${r}-${c}`))
+  }
+  return rects
+}
+
+// ── Wing-flap frame pixel data ────────────────────────────────────────────────
+//
+//  Each frame is described as an array of { r, c1, c2, key } row-spans for the
+//  WING area only.  The body and head stay constant across frames.
+//
+//  NES Duck sprite anatomy (facing right, 16×16 grid):
+//
+//  Row  0-1  : empty / sky
+//  Row  2-5  : HEAD (cols 9-14)
+//  Row  6    : COLLAR + NECK junction
+//  Row  7-12 : BODY (cols 4-14)
+//  Row  7-11 : WING overlay (cols 1-7, position shifts per frame)
+//  Row 13-14 : FEET (cols 7-10)
+//  Row 15    : empty
+
+// Wing-up: wings raised high (rows 5-9)
+const WING_UP = [
+  { r: 5,  c1: 2, c2: 8  },
+  { r: 6,  c1: 1, c2: 9  },
+  { r: 7,  c1: 1, c2: 8  },
+  { r: 8,  c1: 2, c2: 7  },
+  { r: 9,  c1: 3, c2: 6  },
+]
+
+// Wing-mid: wings level with body (rows 7-10)
+const WING_MID = [
+  { r: 7,  c1: 0, c2: 7  },
+  { r: 8,  c1: 0, c2: 8  },
+  { r: 9,  c1: 1, c2: 7  },
+  { r: 10, c1: 2, c2: 6  },
+]
+
+// Wing-down: wings dipped below body (rows 8-12)
+const WING_DOWN = [
+  { r: 8,  c1: 1, c2: 6  },
+  { r: 9,  c1: 0, c2: 7  },
+  { r: 10, c1: 0, c2: 8  },
+  { r: 11, c1: 1, c2: 7  },
+  { r: 12, c1: 2, c2: 5  },
+]
+
+const WING_FRAMES = [WING_UP, WING_MID, WING_DOWN]
+
+// ── Falling duck pixel data ───────────────────────────────────────────────────
+// Wings spread wide horizontally — matches the NES "duck falling" sprite.
+// Shown when the duck is hit; tumbles with CSS rotate animation.
+const WING_FALL_LEFT  = [
+  { r: 6,  c1: 0, c2: 3  },
+  { r: 7,  c1: 0, c2: 4  },
+  { r: 8,  c1: 0, c2: 3  },
+]
+const WING_FALL_RIGHT = [
+  { r: 6,  c1: 11, c2: 15 },
+  { r: 7,  c1: 10, c2: 15 },
+  { r: 8,  c1: 11, c2: 15 },
+]
+
+// ── Core NES duck body (same for all frames) ──────────────────────────────────
+function DuckBody({ p, flip }: { p: DuckPalette; flip: boolean }) {
+  const transform = flip ? `scale(-1,1) translate(-${NES_W * NES_S},0)` : undefined
+  return (
+    <g transform={transform}>
+      {/* OUTLINE: full silhouette border pixels (outline color) */}
+      {/* Head outline */}
+      {row(2, 9,  13, p.outline, 'hout2')}
+      {row(3, 8,  14, p.outline, 'hout3')}
+      {row(4, 8,  14, p.outline, 'hout4')}
+      {row(5, 9,  14, p.outline, 'hout5')}
+      {/* Body outline */}
+      {row(6, 4,  15, p.outline, 'bout6')}
+      {row(7, 3,  15, p.outline, 'bout7')}
+      {row(8, 3,  15, p.outline, 'bout8')}
+      {row(9, 3,  15, p.outline, 'bout9')}
+      {row(10,3,  15, p.outline, 'bout10')}
+      {row(11,3,  15, p.outline, 'bout11')}
+      {row(12,4,  15, p.outline, 'bout12')}
+      {row(13,6,  12, p.outline, 'bout13')}
+      {/* HEAD fill */}
+      {row(3, 9,  13, p.head,    'h3')}
+      {row(4, 9,  13, p.head,    'h4')}
+      {row(5, 10, 13, p.head,    'h5')}
+      {/* Head dark shading (right side) */}
+      {row(3, 12, 13, p.headDk,  'hdk3')}
+      {row(4, 12, 13, p.headDk,  'hdk4')}
+      {/* EYE: white sclera + dark pupil side by side (NES style) */}
+      {px(10, 3, p.eye,    'eye')}
+      {px(11, 3, p.eyePup, 'pup')}
+      {/* COLLAR */}
+      {row(5, 9, 11, p.collar, 'col')}
+      {/* BILL */}
+      {row(2, 12, 15, p.bill, 'bill2')}
+      {row(3, 13, 15, p.bill, 'bill3')}
+      {px(14, 2, p.bill, 'billtip')}
+      {/* NECK / collar join */}
+      {row(6, 7, 10, p.collar, 'neck6')}
+      {/* BODY fill */}
+      {row(7,  4, 14, p.body,   'bod7')}
+      {row(8,  4, 14, p.body,   'bod8')}
+      {row(9,  4, 14, p.body,   'bod9')}
+      {row(10, 4, 14, p.body,   'bod10')}
+      {row(11, 4, 14, p.body,   'bod11')}
+      {row(12, 5, 14, p.body,   'bod12')}
+      {/* Body dark shading (bottom / right) */}
+      {row(10, 12, 14, p.bodyDk, 'bdk10')}
+      {row(11, 10, 14, p.bodyDk, 'bdk11')}
+      {row(12, 10, 14, p.bodyDk, 'bdk12')}
+      {/* TAIL feather tip */}
+      {row(7, 14, 15, p.bodyDk, 'tail7')}
+      {row(8, 14, 15, p.bodyDk, 'tail8')}
+      {/* FEET */}
+      {px(7,  13, p.feet, 'ft1')}
+      {px(8,  13, p.feet, 'ft2')}
+      {px(9,  13, p.feet, 'ft3')}
+      {px(10, 13, p.feet, 'ft4')}
+      {px(7,  14, p.feet, 'ft5')}
+      {px(10, 14, p.feet, 'ft6')}
+    </g>
+  )
+}
+
+// ── Wing layer ────────────────────────────────────────────────────────────────
+function DuckWing({
+  p, frameData, flip,
+}: {
+  p: DuckPalette
+  frameData: { r: number; c1: number; c2: number }[]
+  flip: boolean
+}) {
+  const transform = flip ? `scale(-1,1) translate(-${NES_W * NES_S},0)` : undefined
+  return (
+    <g transform={transform}>
+      {frameData.flatMap(({ r, c1, c2 }) =>
+        Array.from({ length: c2 - c1 + 1 }, (_, i) => {
+          const c = c1 + i
+          // Outline pixel on the outermost column
+          const fill = (c === c1 || c === c2) ? p.outline : p.body
+          return px(c, r, fill, `w-${r}-${c}`)
+        })
+      )}
+      {/* Wing dark shading (bottom row of each wing strip) */}
+      {frameData.slice(-1).flatMap(({ r, c1, c2 }) =>
+        Array.from({ length: c2 - c1 - 1 }, (_, i) => px(c1 + 1 + i, r, p.bodyDk, `wdk-${r}-${i}`))
+      )}
+    </g>
+  )
+}
+
+// ── Full NES duck sprite component ────────────────────────────────────────────
+/**
+ * NesDuckSprite
+ *
+ * Renders an NES-accurate 16×16 pixel-art duck at 3× scale (48×48 CSS px).
+ * Props:
+ *   facing    – 'left' | 'right'  (mirrors the sprite horizontally)
+ *   wingFrame – 0 | 1 | 2        (wing-up / wing-mid / wing-down)
+ *   variant   – 0 | 1 | 2        (green / brown / black color palette)
+ *   falling   – true when the duck has been hit (spread-wing tumble pose)
+ */
+function NesDuckSprite({
+  facing,
+  wingFrame,
+  variant = 0,
+  falling = false,
+}: {
+  facing:    'left' | 'right'
+  wingFrame: 0 | 1 | 2
+  variant?:  DuckVariant
+  falling?:  boolean
+}) {
+  const p    = DUCK_PALETTES[variant]
+  const flip = facing === 'left'
+  const svgW = NES_W * NES_S   // 48
+  const svgH = NES_H * NES_S   // 48
+
+  return (
+    <svg
+      viewBox={`0 0 ${svgW} ${svgH}`}
+      width={svgW}
+      height={svgH}
+      aria-hidden
+      style={{ imageRendering: 'pixelated' }}
+      shapeRendering="crispEdges"
+    >
+      {falling ? (
+        // Falling pose: body + spread wings, no feet (duck tumbles)
+        <>
+          <DuckBody p={p} flip={flip} />
+          <DuckWing p={p} frameData={WING_FALL_LEFT}  flip={flip} />
+          <DuckWing p={p} frameData={WING_FALL_RIGHT} flip={flip} />
+        </>
+      ) : (
+        // Normal flying pose: body + animated wing frame
+        <>
+          <DuckBody p={p} flip={flip} />
+          <DuckWing p={p} frameData={WING_FRAMES[wingFrame]} flip={flip} />
+        </>
+      )}
+    </svg>
+  )
+}
+
 // ── Mode Select Screen ────────────────────────────────────────────────────────
 
 function ModeSelectScreen({ onSelect }: { onSelect: (mode: GameMode) => void }) {
   return (
     <div className="dh-mode-select">
       <div className="dh-mode-select__box">
-        <div className="dh-mode-select__duck">🦆</div>
+        {/* Pixel-art duck instead of emoji */}
+        <div className="dh-mode-select__duck">
+          <NesDuckSprite facing="right" wingFrame={1} variant={0} />
+        </div>
         <div className="dh-mode-select__title">DUCK HUNT</div>
         <div className="dh-mode-select__subtitle">Select Game Mode</div>
         <div className="dh-mode-select__buttons">
           <button className="dh-mode-select__btn dh-mode-select__btn--1p" onClick={() => onSelect('A')}>
-            <span className="dh-mode-select__btn-icon">🦆</span>
+            <span className="dh-mode-select__btn-icon dh-mode-select__btn-icon--pixel">
+              <NesDuckSprite facing="right" wingFrame={0} variant={0} />
+            </span>
             <span className="dh-mode-select__btn-label">GAME A</span>
             <span className="dh-mode-select__btn-desc">1 duck · 3 shots per duck · 10 ducks/round</span>
           </button>
           <button className="dh-mode-select__btn dh-mode-select__btn--2p" onClick={() => onSelect('B')}>
-            <span className="dh-mode-select__btn-icon">🦆🦆</span>
+            <span className="dh-mode-select__btn-icon dh-mode-select__btn-icon--pixel">
+              <NesDuckSprite facing="right" wingFrame={0} variant={0} />
+              <NesDuckSprite facing="left"  wingFrame={0} variant={1} />
+            </span>
             <span className="dh-mode-select__btn-label">GAME B</span>
             <span className="dh-mode-select__btn-desc">2 ducks · 3 shots each · 10 ducks/round</span>
           </button>
@@ -147,29 +457,6 @@ function ModeSelectScreen({ onSelect }: { onSelect: (mode: GameMode) => void }) 
         </div>
       </div>
     </div>
-  )
-}
-
-// ── SVG duck sprite (3-frame wing animation) ──────────────────────────────────
-
-function DuckSvg({ facing, wingFrame }: { facing: 'left' | 'right'; wingFrame: number }) {
-  // wing cy: 0=up(24) 1=mid(28) 2=down(32)
-  const wingY = wingFrame === 0 ? 24 : wingFrame === 1 ? 28 : 32
-  const eyeX  = facing === 'right' ? 30 : 22
-  const billX = facing === 'right' ? 36 : 16
-
-  return (
-    <svg viewBox="0 0 52 52" width={DUCK_SIZE} height={DUCK_SIZE} aria-hidden>
-      <ellipse cx="26" cy="32" rx="18" ry="13" fill="#22c55e" />
-      <circle  cx="26" cy="16" r="9"           fill="#16a34a" />
-      <circle  cx={eyeX} cy="14" r="2" fill="#fff" />
-      <circle  cx={facing === 'right' ? eyeX + 1 : eyeX - 1} cy="14" r="1" fill="#111" />
-      <ellipse cx={billX} cy="17" rx="5" ry="3" fill="#f97316" />
-      <ellipse cx="26" cy={wingY} rx="10" ry="6" fill="#15803d" />
-      <line x1="20" y1="44" x2="16" y2="50" stroke="#f97316" strokeWidth="2" strokeLinecap="round" />
-      <line x1="26" y1="44" x2="24" y2="50" stroke="#f97316" strokeWidth="2" strokeLinecap="round" />
-      <line x1="32" y1="44" x2="34" y2="50" stroke="#f97316" strokeWidth="2" strokeLinecap="round" />
-    </svg>
   )
 }
 
@@ -770,7 +1057,7 @@ export default function DuckHuntGame() {
                 <div className="dh-missed-text">HA HA HA!</div>
               </>
             ) : (
-              <div className="dh-hit-text">🦆 HIT!</div>
+              <div className="dh-hit-text">✓ HIT!</div>
             )}
           </div>
         )}
@@ -795,7 +1082,12 @@ export default function DuckHuntGame() {
             >
               {gameMode === 'C'
                 ? <ClaySvg angle={clayAngle} />
-                : <DuckSvg facing={facing} wingFrame={duck.wingFrame} />
+                : <NesDuckSprite
+                    facing={facing}
+                    wingFrame={duck.wingFrame as 0|1|2}
+                    variant={gameMode === 'B' ? (ducks.indexOf(duck) % 2 === 1 ? 1 : 0) as DuckVariant : 0}
+                    falling={duck.hit}
+                  />
               }
             </div>
           )
