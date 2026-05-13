@@ -2,12 +2,13 @@
 // A self-contained panel that:
 //   * shows the live camera feed with landmark overlays
 //   * surfaces detected-hand data (handedness, gesture name, index-tip pos)
-//   * exposes an `onHandData` prop so the chess game can respond to gestures
+//   * exposes an `onHandData` prop so the parent can respond to gestures
 //
-// This is intentionally a *display + hook-wiring* layer only — no chess logic
-// lives here.
+// The <video> element is ALWAYS mounted (the body uses display:none when
+// collapsed, not conditional rendering) so the camera stream continues
+// uninterrupted when the user hides the preview.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
   useHandRecognition,
   type HandData,
@@ -18,12 +19,26 @@ import {
 import './HandRecognitionPanel.css'
 
 interface HandRecognitionPanelProps {
-  /** Optional callback forwarded from the parent (e.g. ChessGame) */
+  /** Optional callback forwarded from the parent (e.g. ChessGame / DuckHuntGame) */
   onHandData?: (data: HandData) => void
+  /**
+   * When true the camera is started automatically on mount.
+   * The user can still stop/restart it manually via the Stop/Start button.
+   */
+  autoStart?: boolean
+  /**
+   * When true the video preview is hidden by default.
+   * The header + controls always stay visible.
+   */
+  defaultCollapsed?: boolean
 }
 
-export default function HandRecognitionPanel({ onHandData }: HandRecognitionPanelProps) {
-  const [expanded, setExpanded] = useState(false)
+export default function HandRecognitionPanel({
+  onHandData,
+  autoStart = false,
+  defaultCollapsed = false,
+}: HandRecognitionPanelProps) {
+  const [expanded, setExpanded] = useState(!defaultCollapsed)
 
   const {
     videoRef,
@@ -36,6 +51,15 @@ export default function HandRecognitionPanel({ onHandData }: HandRecognitionPane
     stop,
   } = useHandRecognition({ onHandData })
 
+  // Auto-start camera when `autoStart` prop is true
+  useEffect(() => {
+    if (autoStart) {
+      void start()
+    }
+    // `start` is stable — created with useCallback([]) in the hook
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const toggleCamera = () => {
     if (isRunning) {
       stop()
@@ -46,7 +70,7 @@ export default function HandRecognitionPanel({ onHandData }: HandRecognitionPane
 
   return (
     <div className={`hrp ${expanded ? 'hrp--expanded' : 'hrp--collapsed'}`}>
-      {/* Header bar */}
+      {/* Header bar – always visible */}
       <div className="hrp__header">
         <span className="hrp__title">Hand Control</span>
 
@@ -72,96 +96,98 @@ export default function HandRecognitionPanel({ onHandData }: HandRecognitionPane
         </div>
       </div>
 
-      {/* Body (only visible when expanded) */}
-      {expanded && (
-        <div className="hrp__body">
-          {error && (
-            <div className="hrp__error">
-              {error}
+      {/*
+        Body is ALWAYS mounted (display toggled via style, not conditional
+        rendering) so videoRef / canvasRef stay attached to the same DOM nodes
+        and the camera stream continues running even when "hidden".
+      */}
+      <div className="hrp__body" style={expanded ? undefined : { display: 'none' }}>
+        {error && (
+          <div className="hrp__error">
+            {error}
+          </div>
+        )}
+
+        {/* Camera + overlay stack */}
+        <div className="hrp__video-wrapper">
+          <video
+            ref={videoRef}
+            className="hrp__video"
+            playsInline
+            muted
+          />
+          <canvas ref={canvasRef} className="hrp__canvas" />
+
+          {!isRunning && !isLoading && (
+            <div className="hrp__placeholder">
+              <span>Camera off</span>
+              <small>Press Start to enable hand detection</small>
             </div>
           )}
-
-          {/* Camera + overlay stack */}
-          <div className="hrp__video-wrapper">
-            <video
-              ref={videoRef}
-              className="hrp__video"
-              playsInline
-              muted
-            />
-            <canvas ref={canvasRef} className="hrp__canvas" />
-
-            {!isRunning && !isLoading && (
-              <div className="hrp__placeholder">
-                <span>Camera off</span>
-                <small>Press Start to enable hand detection</small>
-              </div>
-            )}
-            {isLoading && (
-              <div className="hrp__placeholder hrp__placeholder--loading">
-                <span>Loading GestureRecognizer model...</span>
-                <small>Downloading WASM runtime (~10 MB, first time only)</small>
-              </div>
-            )}
-          </div>
-
-          {/* Live stats */}
-          {handData && handData.hands.length > 0 ? (
-            <div className="hrp__stats">
-              {handData.hands.map((hand, i) => (
-                <div key={i} className="hrp__hand-card">
-                  <div className="hrp__hand-title">
-                    {hand.handedness} hand
-                    {hand.gesture === GESTURE_POINTING_UP && (
-                      <span className="hrp__badge hrp__badge--pointing">cursor</span>
-                    )}
-                    {hand.gesture === GESTURE_FIST && (
-                      <span className="hrp__badge hrp__badge--fist">grab</span>
-                    )}
-                    {hand.gesture === GESTURE_OPEN_PALM && (
-                      <span className="hrp__badge hrp__badge--palm">release</span>
-                    )}
-                  </div>
-
-                  <div className="hrp__hand-row">
-                    <span className="hrp__label">Index tip</span>
-                    <span className="hrp__value">
-                      ({(hand.indexTip.x * 100).toFixed(1)}%, {(hand.indexTip.y * 100).toFixed(1)}%)
-                    </span>
-                  </div>
-
-                  <div className="hrp__hand-row">
-                    <span className="hrp__label">Gesture</span>
-                    <span className="hrp__value">
-                      <span className={`hrp__gesture-badge hrp__gesture-badge--${hand.gesture.toLowerCase().replace(/_/g, '-')}`}>
-                        {hand.gesture}
-                      </span>
-                      <span className="hrp__gesture-score">
-                        {' '}{Math.round(hand.gestureScore * 100)}%
-                      </span>
-                    </span>
-                  </div>
-                </div>
-              ))}
+          {isLoading && (
+            <div className="hrp__placeholder hrp__placeholder--loading">
+              <span>Loading model...</span>
+              <small>Downloading WASM runtime (~10 MB, first time only)</small>
             </div>
-          ) : isRunning ? (
-            <div className="hrp__no-hands">No hands detected — show your hand to the camera</div>
-          ) : null}
-
-          {/* Usage hint */}
-          <div className="hrp__hint">
-            <strong>Point</strong> your index finger at a square to hover it.
-            <br />
-            <strong>Close your fist</strong> over a piece to pick it up (hold ~0.2 s).
-            <br />
-            <strong>Move</strong> your hand to drag the piece across the board.
-            <br />
-            <strong>Open your palm</strong> to drop it on a valid square (hold ~0.2 s).
-            <br />
-            <em>Pink = grab &nbsp;·&nbsp; Green = release &nbsp;·&nbsp; Cyan = cursor</em>
-          </div>
+          )}
         </div>
-      )}
+
+        {/* Live stats */}
+        {handData && handData.hands.length > 0 ? (
+          <div className="hrp__stats">
+            {handData.hands.map((hand, i) => (
+              <div key={i} className="hrp__hand-card">
+                <div className="hrp__hand-title">
+                  {hand.handedness} hand
+                  {hand.gesture === GESTURE_POINTING_UP && (
+                    <span className="hrp__badge hrp__badge--pointing">cursor</span>
+                  )}
+                  {hand.gesture === GESTURE_FIST && (
+                    <span className="hrp__badge hrp__badge--fist">grab</span>
+                  )}
+                  {hand.gesture === GESTURE_OPEN_PALM && (
+                    <span className="hrp__badge hrp__badge--palm">release</span>
+                  )}
+                </div>
+
+                <div className="hrp__hand-row">
+                  <span className="hrp__label">Index tip</span>
+                  <span className="hrp__value">
+                    ({(hand.indexTip.x * 100).toFixed(1)}%, {(hand.indexTip.y * 100).toFixed(1)}%)
+                  </span>
+                </div>
+
+                <div className="hrp__hand-row">
+                  <span className="hrp__label">Gesture</span>
+                  <span className="hrp__value">
+                    <span className={`hrp__gesture-badge hrp__gesture-badge--${hand.gesture.toLowerCase().replace(/_/g, '-')}`}>
+                      {hand.gesture}
+                    </span>
+                    <span className="hrp__gesture-score">
+                      {' '}{Math.round(hand.gestureScore * 100)}%
+                    </span>
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : isRunning ? (
+          <div className="hrp__no-hands">No hands detected — show your hand to the camera</div>
+        ) : null}
+
+        {/* Usage hint */}
+        <div className="hrp__hint">
+          <strong>Point</strong> your index finger at a square to hover it.
+          <br />
+          <strong>Close your fist</strong> over a piece to pick it up (hold ~0.2 s).
+          <br />
+          <strong>Move</strong> your hand to drag the piece across the board.
+          <br />
+          <strong>Open your palm</strong> to drop it on a valid square (hold ~0.2 s).
+          <br />
+          <em>Pink = grab &nbsp;·&nbsp; Green = release &nbsp;·&nbsp; Cyan = cursor</em>
+        </div>
+      </div>
     </div>
   )
 }
