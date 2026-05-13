@@ -939,17 +939,17 @@
   margin-top: 0.1rem;
 }
 
-/* ── Floating hand-tracking overlay (camera corner) ───────────────────────── */
-/* Positioned as a fixed-size floating panel in the bottom-left of the sky.   */
-/* It does NOT consume vertical flex space — the game canvas stays full-size.  */
+/* ── Floating hand-tracking panel (fixed corner, outside game canvas) ──────── */
+/* Positioned fixed to the bottom-right of the viewport so it never overlaps  */
+/* the playable sky / game area.                                               */
 
 .dh-hand-overlay {
-  position: absolute;
-  bottom: 8px;
-  left: 8px;
-  z-index: 50;
-  width: 240px;
-  max-width: 38vw;
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 200;
+  width: 220px;
+  max-width: 32vw;
   pointer-events: auto;
   filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.75));
 }
