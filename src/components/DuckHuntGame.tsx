@@ -421,6 +421,163 @@ function NesDuckSprite({
   )
 }
 
+
+// ── NES Background Scenery ─────────────────────────────────────────────────
+// Renders the classic Duck Hunt layered backdrop:
+//   1. Flat NES-palette sky (handled in CSS)
+//   2. Three pixel-art clouds at fixed NES positions
+//   3. Tree-line silhouette (dark green pyramid trees across left ~55%)
+//   4. Hill + house silhouette on the right
+//   5. Foreground grass strip (handled in CSS + NesScenery bottom rows)
+//   6. Four pixel-art bushes at fixed positions on the ground strip
+
+/** Single NES-style blocky cloud — stacked SVG rects, no border-radius */
+function NesCloud({ x, y, scale = 1 }: { x: string; y: string; scale?: number }) {
+  const S = 8 * scale  // px per NES "pixel"
+  return (
+    <svg
+      className="dh-nes-cloud"
+      style={{ left: x, top: y, position: 'absolute', pointerEvents: 'none', zIndex: 2 }}
+      width={S * 10}
+      height={S * 5}
+      viewBox={`0 0 ${S * 10} ${S * 5}`}
+      aria-hidden
+      shapeRendering="crispEdges"
+    >
+      {/* Row 0: top bump (cols 3-6) */}
+      <rect x={S * 3} y={0}       width={S * 4}  height={S} fill="#F8F8F8" />
+      {/* Row 1 (cols 2-7) */}
+      <rect x={S * 2} y={S}       width={S * 6}  height={S} fill="#F8F8F8" />
+      {/* Row 2: widest (cols 0-9) */}
+      <rect x={0}     y={S * 2}   width={S * 10} height={S} fill="#F8F8F8" />
+      {/* Row 3 (cols 1-8) */}
+      <rect x={S}     y={S * 3}   width={S * 8}  height={S} fill="#F8F8F8" />
+      {/* Row 4: shadow (cols 1-8) */}
+      <rect x={S}     y={S * 4}   width={S * 8}  height={S} fill="#C8C8C8" />
+    </svg>
+  )
+}
+
+/** NES tree-line + hill + house silhouette — full-width SVG layer */
+function NesScenery() {
+  // NES Duck Hunt palette colors
+  const TREE_DK  = '#006800'  // dark tree silhouette
+  const TREE_LT  = '#00A800'  // lighter tree highlight
+  const HILL     = '#00A800'  // hill green
+  const HOUSE_WL = '#D8B070'  // house wall (tan/cream)
+  const HOUSE_RF = '#A83000'  // house roof (dark red)
+  const HOUSE_WN = '#5C94FC'  // window (NES sky-blue)
+
+  return (
+    <svg
+      className="dh-nes-scenery"
+      width="100%"
+      height="100%"
+      viewBox="0 0 256 192"
+      preserveAspectRatio="xMidYMax meet"
+      aria-hidden
+      shapeRendering="crispEdges"
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1 }}
+    >
+      {/* ── Tree trunks ── */}
+      <rect x={14}  y={148} width={6}  height={20} fill={TREE_DK} />
+      <rect x={38}  y={144} width={8}  height={24} fill={TREE_DK} />
+      <rect x={66}  y={150} width={6}  height={18} fill={TREE_DK} />
+      <rect x={92}  y={146} width={8}  height={22} fill={TREE_DK} />
+      <rect x={118} y={148} width={6}  height={20} fill={TREE_DK} />
+
+      {/* ── Tree A (leftmost, ~x=2) ── */}
+      <rect x={2}   y={124} width={30} height={24} fill={TREE_DK} />
+      <rect x={4}   y={116} width={26} height={8}  fill={TREE_DK} />
+      <rect x={6}   y={108} width={22} height={8}  fill={TREE_DK} />
+      <rect x={8}   y={100} width={18} height={8}  fill={TREE_DK} />
+      <rect x={10}  y={100} width={12} height={8}  fill={TREE_LT} />
+      {/* ── Tree B (~x=28) ── */}
+      <rect x={26}  y={120} width={34} height={28} fill={TREE_DK} />
+      <rect x={28}  y={112} width={30} height={8}  fill={TREE_DK} />
+      <rect x={32}  y={104} width={22} height={8}  fill={TREE_DK} />
+      <rect x={34}  y={96}  width={18} height={8}  fill={TREE_DK} />
+      <rect x={36}  y={96}  width={12} height={8}  fill={TREE_LT} />
+      {/* ── Tree C (~x=56) ── */}
+      <rect x={54}  y={128} width={28} height={20} fill={TREE_DK} />
+      <rect x={56}  y={120} width={24} height={8}  fill={TREE_DK} />
+      <rect x={58}  y={112} width={20} height={8}  fill={TREE_DK} />
+      <rect x={60}  y={104} width={16} height={8}  fill={TREE_DK} />
+      <rect x={62}  y={104} width={10} height={8}  fill={TREE_LT} />
+      {/* ── Tree D (~x=82) ── */}
+      <rect x={80}  y={122} width={34} height={26} fill={TREE_DK} />
+      <rect x={82}  y={114} width={30} height={8}  fill={TREE_DK} />
+      <rect x={86}  y={106} width={22} height={8}  fill={TREE_DK} />
+      <rect x={88}  y={98}  width={18} height={8}  fill={TREE_DK} />
+      <rect x={90}  y={98}  width={12} height={8}  fill={TREE_LT} />
+      {/* ── Tree E (shorter, ~x=108) ── */}
+      <rect x={108} y={132} width={26} height={16} fill={TREE_DK} />
+      <rect x={110} y={124} width={22} height={8}  fill={TREE_DK} />
+      <rect x={112} y={116} width={18} height={8}  fill={TREE_DK} />
+      <rect x={114} y={108} width={12} height={8}  fill={TREE_DK} />
+      <rect x={116} y={108} width={8}  height={8}  fill={TREE_LT} />
+
+      {/* ── Hill silhouette (right side, x=128–256) ── */}
+      <rect x={128} y={140} width={128} height={52} fill={HILL} />
+      <rect x={138} y={132} width={118} height={8}  fill={HILL} />
+      <rect x={150} y={124} width={106} height={8}  fill={HILL} />
+      <rect x={164} y={116} width={92}  height={8}  fill={HILL} />
+      <rect x={180} y={108} width={76}  height={8}  fill={HILL} />
+      <rect x={194} y={100} width={62}  height={8}  fill={HILL} />
+      <rect x={206} y={92}  width={50}  height={8}  fill={HILL} />
+
+      {/* ── House on hill (pixel-art, NES style) ── */}
+      {/* Main house body */}
+      <rect x={198} y={68}  width={48} height={32} fill={HOUSE_WL} />
+      {/* Roof tiers (stepped) */}
+      <rect x={200} y={60}  width={44} height={8}  fill={HOUSE_RF} />
+      <rect x={204} y={52}  width={36} height={8}  fill={HOUSE_RF} />
+      <rect x={208} y={44}  width={28} height={8}  fill={HOUSE_RF} />
+      <rect x={212} y={36}  width={20} height={8}  fill={HOUSE_RF} />
+      <rect x={216} y={28}  width={12} height={8}  fill={HOUSE_RF} />
+      {/* Left window */}
+      <rect x={202} y={72}  width={10} height={10} fill={HOUSE_WN} />
+      {/* Right window */}
+      <rect x={232} y={72}  width={10} height={10} fill={HOUSE_WN} />
+      {/* Door */}
+      <rect x={217} y={80}  width={10} height={20} fill={HOUSE_RF} />
+    </svg>
+  )
+}
+
+/** NES pixel-art bush — stacked SVG rects in two green tones */
+function NesBush({ style }: { style?: React.CSSProperties }) {
+  const G1 = '#00A800'  // bright green (top)
+  const G2 = '#006800'  // dark green (bottom / shadow)
+  const S  = 6          // px per pixel
+  return (
+    <svg
+      className="dh-nes-bush"
+      style={style}
+      width={S * 12}
+      height={S * 7}
+      viewBox={`0 0 ${S * 12} ${S * 7}`}
+      aria-hidden
+      shapeRendering="crispEdges"
+    >
+      {/* Row 0: top knob */}
+      <rect x={S * 4}  y={0}      width={S * 4}  height={S} fill={G1} />
+      {/* Row 1 */}
+      <rect x={S * 2}  y={S}      width={S * 8}  height={S} fill={G1} />
+      {/* Row 2 */}
+      <rect x={S}      y={S * 2}  width={S * 10} height={S} fill={G1} />
+      {/* Row 3 — widest */}
+      <rect x={0}      y={S * 3}  width={S * 12} height={S} fill={G1} />
+      {/* Row 4 — shadow starts */}
+      <rect x={0}      y={S * 4}  width={S * 12} height={S} fill={G2} />
+      {/* Row 5 */}
+      <rect x={S}      y={S * 5}  width={S * 10} height={S} fill={G2} />
+      {/* Row 6 — base */}
+      <rect x={S * 2}  y={S * 6}  width={S * 8}  height={S} fill={G2} />
+    </svg>
+  )
+}
+
 // ── Mode Select Screen ────────────────────────────────────────────────────────
 
 function ModeSelectScreen({ onSelect }: { onSelect: (mode: GameMode) => void }) {
@@ -990,10 +1147,13 @@ export default function DuckHuntGame() {
           </div>
         )}
 
-        {/* Decorative clouds */}
-        <div className="dh-cloud dh-cloud--1" />
-        <div className="dh-cloud dh-cloud--2" />
-        <div className="dh-cloud dh-cloud--3" />
+        {/* NES pixel-art clouds at classic Duck Hunt positions */}
+        <NesCloud x="8%"  y="10%" scale={1.1} />
+        <NesCloud x="46%" y="18%" scale={0.9} />
+        <NesCloud x="72%" y="7%"  scale={1.0} />
+
+        {/* NES layered scenery: tree line, hill, house — full-width SVG */}
+        <NesScenery />
 
         {/* Pause overlay */}
         {paused && phase === 'playing' && (
@@ -1130,10 +1290,11 @@ export default function DuckHuntGame() {
 
       {/* ── Ground / Grass strip ─────────────────────────────────────── */}
       <div className="dh-ground">
-        <div className="dh-bush" style={{ left: '2%' }} />
-        <div className="dh-bush" style={{ left: '14%' }} />
-        <div className="dh-bush" style={{ left: '75%' }} />
-        <div className="dh-bush" style={{ left: '88%' }} />
+        {/* NES pixel-art bushes at classic fixed positions */}
+        <NesBush style={{ position: 'absolute', bottom: '4px', left: '2%',  transform: 'translateX(-50%)' }} />
+        <NesBush style={{ position: 'absolute', bottom: '4px', left: '14%', transform: 'translateX(-50%)' }} />
+        <NesBush style={{ position: 'absolute', bottom: '4px', left: '75%', transform: 'translateX(-50%)' }} />
+        <NesBush style={{ position: 'absolute', bottom: '4px', left: '88%', transform: 'translateX(-50%)' }} />
       </div>
 
       {/* ── HUD bar ──────────────────────────────────────────────────── */}
