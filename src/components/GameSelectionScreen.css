@@ -208,3 +208,7 @@
     font-size: 4rem;
   }
 }
+
+.game-card__banner--platformer {
+  background: linear-gradient(135deg, #3b1f5e 0%, #7c3aed 55%, #4c1d95 100%);
+}

@@ -4,6 +4,7 @@ import GameSelectionScreen from './components/GameSelectionScreen'
 import type { GameId } from './components/GameSelectionScreen'
 import ChessGame from './components/ChessGame'
 import DuckHuntGame from './components/DuckHuntGame'
+import PlatformerGame from './components/PlatformerGame'
 import HandRecognitionPanel from './components/HandRecognitionPanel'
 import AudioControlPanel from './components/AudioControlPanel'
 import type { HandData } from './hooks/useHandRecognition'
@@ -82,6 +83,12 @@ export default function App() {
               >
                 🦆 Duck Hunt
               </button>
+              <button
+                className={`control-mode-btn ${activeGame === 'platformer' ? 'control-mode-btn--active' : ''}`}
+                onClick={() => handleSelectGame('platformer')}
+              >
+                🍄 Platformer
+              </button>
             </div>
 
             {/* Control mode – only relevant for Chess */}
@@ -129,6 +136,10 @@ export default function App() {
 
             {activeGame === 'duckhunt' && (
               <DuckHuntGame />
+            )}
+
+            {activeGame === 'platformer' && (
+              <PlatformerGame />
             )}
           </div>
         </>
