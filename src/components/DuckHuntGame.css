@@ -623,6 +623,26 @@
   transition: opacity 0.4s;
 }
 
+/* ── Falling duck tumble (hit) ───────────────────────────────────────────────── */
+/* When a duck is hit, it uses the spread-wing falling pose and tumbles down.    */
+/* The NES original showed the duck spinning/rotating as it fell.                 */
+
+.dh-duck-sprite--falling {
+  animation: dh-duck-tumble 0.9s linear infinite;
+  image-rendering: pixelated;
+}
+
+@keyframes dh-duck-tumble {
+  0%   { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* NES pixel sprites should always render crisp */
+.dh-duck-sprite svg {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
 /* ── Bird result overlay (hit / dog laugh per duck) ─────────────────────────── */
 
 .dh-bird-result {
@@ -733,9 +753,15 @@
 }
 
 .dh-mode-select__duck {
-  font-size: 4rem;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Scale up the 48×48 NES sprite to ~3.5× for the title card */
+  transform: scale(3.5);
+  transform-origin: center center;
+  margin: 1.5rem 0 2.5rem;
   animation: dh-bob 1.2s ease-in-out infinite;
+  image-rendering: pixelated;
 }
 
 .dh-mode-select__title {
@@ -814,6 +840,19 @@
 .dh-mode-select__btn-icon {
   font-size: 2rem;
   line-height: 1;
+}
+
+/* Pixel-art duck icons in mode-select buttons */
+.dh-mode-select__btn-icon--pixel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  /* Scale 48px sprites down a little so two fit side by side */
+  transform: scale(1.2);
+  transform-origin: center center;
+  margin: 0.15rem 0 0.35rem;
+  image-rendering: pixelated;
 }
 
 .dh-mode-select__btn-label {
