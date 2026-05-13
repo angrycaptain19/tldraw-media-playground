@@ -552,30 +552,40 @@
 
 .pl-btn:hover { background: #15803d; }
 
-/* ── Floating hand overlay ────────────────────────────────────────────────── */
+/* ── Hand panel (below the game canvas) ──────────────────────────────────── */
 
-.pl-hand-overlay {
-  position: absolute;
-  bottom: 8px;
-  left: 8px;
-  z-index: 50;
-  width: 230px;
-  max-width: 36vw;
+.pl-hand-panel {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-shrink: 0;
+  background: #0d1117;
+  border-top: 2px solid #374151;
+  padding: 0.5rem 0.75rem;
   pointer-events: auto;
-  filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.75));
+  overflow: hidden;
 }
 
-.pl-hand-overlay .hrp { max-width: 100%; font-size: 0.75rem; }
-.pl-hand-overlay .hrp__video-wrapper { aspect-ratio: 4 / 3; }
-.pl-hand-overlay .hrp__stats, .pl-hand-overlay .hrp__hint { display: none; }
+.pl-hand-panel__camera {
+  width: 200px;
+  flex-shrink: 0;
+}
+
+.pl-hand-panel__camera .hrp { max-width: 100%; font-size: 0.75rem; margin-top: 0; }
+.pl-hand-panel__camera .hrp__video-wrapper { aspect-ratio: 4 / 3; }
+.pl-hand-panel__camera .hrp__stats, .pl-hand-panel__camera .hrp__hint { display: none; }
 
 .pl-hand-hint {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   font-size: 0.62rem;
   color: #6b7280;
   line-height: 1.4;
-  margin-top: 0.3rem;
-  text-align: center;
-  padding: 0 0.25rem;
+  padding: 0.25rem 0;
+  flex: 1;
+  min-width: 0;
 }
 
 /* ── Responsive ───────────────────────────────────────────────────────────── */
@@ -583,7 +593,8 @@
 @media (max-width: 700px) {
   .pl-hud { height: auto; flex-wrap: wrap; padding: 0.35rem; gap: 0.3rem; }
   .pl-hud-cell { flex: 1 1 70px; margin: 0; }
-  .pl-hand-overlay { width: 160px; max-width: 45vw; }
+  .pl-hand-panel { flex-direction: column; }
+  .pl-hand-panel__camera { width: 100%; }
   .pl-overlay__title { font-size: 1.5rem; }
   .pl-overlay__box { padding: 1rem 1.5rem; min-width: 200px; }
 }
