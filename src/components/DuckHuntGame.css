@@ -156,6 +156,12 @@
   image-rendering: crisp-edges;
 }
 
+/* Foreground trees sit above ducks (z=8); background (z=1) sits behind them */
+.dh-nes-foreground-trees {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
 /* ── Overlays ─────────────────────────────────────────────────────────────── */
 
 .dh-overlay {
@@ -314,6 +320,7 @@
   transform: translate(-50%, -50%);
   pointer-events: none;
   will-change: transform;
+  z-index: 5; /* above background scenery (z=1), below foreground trees (z=8) */
 }
 
 .dh-duck-sprite--left svg {
