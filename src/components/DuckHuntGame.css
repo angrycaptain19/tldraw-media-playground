@@ -1,0 +1,334 @@
+/* ─── DuckHuntGame Layout ──────────────────────────────────────────────────── */
+
+.dh-container {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 480px;
+  background: #5c94fc;
+  overflow: hidden;
+  font-family: 'Courier New', Courier, monospace;
+  user-select: none;
+}
+
+/* ── Sky / Game canvas ────────────────────────────────────────────────────── */
+
+.dh-sky {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: linear-gradient(to bottom, #7ec8e3 0%, #c9e8f5 70%, #a8d5a2 100%);
+  cursor: crosshair;
+  overflow: hidden;
+}
+
+.dh-sky--paused {
+  cursor: default;
+}
+
+.dh-sky-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: rgba(0, 0, 0, 0.18);
+  letter-spacing: 0.04em;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* ── Ducks ─────────────────────────────────────────────────────────────────── */
+
+.dh-duck {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  background: transparent;
+  border: none;
+  cursor: crosshair;
+  padding: 0;
+  width: 48px;
+  height: 56px;
+}
+
+.dh-duck:not(:disabled):hover svg circle {
+  stroke: #15803d;
+  filter: drop-shadow(0 0 6px #22c55e88);
+}
+
+.dh-duck--hit {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.dh-duck-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #166534;
+  line-height: 1;
+  pointer-events: none;
+  text-shadow: 0 0 4px #fff;
+}
+
+.dh-duck--hit .dh-duck-label {
+  color: #dc2626;
+}
+
+/* ── Crosshair ─────────────────────────────────────────────────────────────── */
+
+.dh-crosshair {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 20;
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.5));
+}
+
+/* ── Pause overlay ─────────────────────────────────────────────────────────── */
+
+.dh-pause-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 30;
+}
+
+.dh-pause-overlay span {
+  font-size: 2.5rem;
+  font-weight: 900;
+  color: #fff;
+  letter-spacing: 0.15em;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+
+/* ── Round-clear message ────────────────────────────────────────────────────── */
+
+.dh-round-clear {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  background: rgba(255, 255, 255, 0.85);
+  border: 3px solid #22c55e;
+  border-radius: 12px;
+  padding: 1.25rem 2rem;
+  z-index: 25;
+  text-align: center;
+}
+
+.dh-round-clear p {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #166534;
+}
+
+/* ── Ground / Grass strip ───────────────────────────────────────────────────── */
+
+.dh-ground {
+  position: relative;
+  flex-shrink: 0;
+  height: 68px;
+  background: linear-gradient(to bottom, #4ade80, #16a34a);
+  border-top: 3px solid #15803d;
+  border-bottom: 3px solid #166534;
+  overflow: visible;
+}
+
+.dh-ground-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.05em;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* ── Bushes ─────────────────────────────────────────────────────────────────── */
+
+.dh-bush {
+  position: absolute;
+  bottom: -3px;
+  width: 80px;
+  height: 80px;
+  background: #166534;
+  border: 3px solid #14532d;
+  border-radius: 50% 50% 10% 10%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #bbf7d0;
+  letter-spacing: 0.03em;
+  transform: translateX(-50%);
+}
+
+/* ── HUD bar ───────────────────────────────────────────────────────────────── */
+
+.dh-hud {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  flex-shrink: 0;
+  background: #1a1a2e;
+  border-top: 3px solid #000;
+  height: 70px;
+  padding: 0 0.5rem;
+  overflow: hidden;
+}
+
+.dh-hud-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-width: 0;
+  padding: 0.2rem 0.4rem;
+  border: 1px solid #374151;
+  border-radius: 4px;
+  margin: 0 0.25rem;
+  height: 52px;
+  background: #0d1117;
+}
+
+.dh-hud-cell__label {
+  font-size: 0.58rem;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.dh-hud-cell__value {
+  font-size: 1.05rem;
+  font-weight: 900;
+  color: #facc15;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+}
+
+/* ── Ammo bullets ──────────────────────────────────────────────────────────── */
+
+.dh-hud-cell__ammo {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+.dh-ammo-bullet {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border-radius: 2px;
+  background: #facc15;
+  border: 1px solid #a16207;
+}
+
+.dh-ammo-bullet--spent {
+  background: #374151;
+  border-color: #4b5563;
+}
+
+/* ── Pause button ──────────────────────────────────────────────────────────── */
+
+.dh-pause-btn {
+  flex-shrink: 0;
+  margin: 0 0.25rem;
+  padding: 0.3rem 0.6rem;
+  height: 52px;
+  min-width: 72px;
+  background: #111827;
+  border: 2px solid #f97316;
+  border-radius: 6px;
+  color: #f97316;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.dh-pause-btn:hover,
+.dh-pause-btn--active {
+  background: #f97316;
+  color: #fff;
+}
+
+/* ── Generic button ─────────────────────────────────────────────────────────── */
+
+.dh-btn {
+  padding: 0.35rem 1rem;
+  border-radius: 6px;
+  border: 2px solid #22c55e;
+  background: #166534;
+  color: #dcfce7;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.dh-btn:hover {
+  background: #15803d;
+}
+
+.dh-btn--next-round {
+  font-size: 0.9rem;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────────── */
+
+@media (max-width: 700px) {
+  .dh-hud {
+    height: auto;
+    flex-wrap: wrap;
+    padding: 0.35rem;
+    gap: 0.3rem;
+  }
+
+  .dh-hud-cell {
+    flex: 1 1 80px;
+    margin: 0;
+  }
+
+  .dh-pause-btn {
+    flex: 0 0 auto;
+    height: auto;
+    min-width: 60px;
+    padding: 0.4rem 0.5rem;
+  }
+
+  .dh-bush {
+    width: 58px;
+    height: 58px;
+    font-size: 0.5rem;
+  }
+
+  .dh-ground {
+    height: 52px;
+  }
+}
