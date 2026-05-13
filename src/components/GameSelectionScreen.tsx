@@ -4,7 +4,7 @@
 
 import './GameSelectionScreen.css'
 
-export type GameId = 'chess' | 'duckhunt'
+export type GameId = 'chess' | 'duckhunt' | 'platformer'
 
 interface GameMeta {
   id: GameId
@@ -35,6 +35,16 @@ const GAMES: GameMeta[] = [
       'How many rounds can you survive?',
     tags: ['Arcade', 'Shooter', '✋ Hand Tracking'],
     bannerClass: 'game-card__banner--duckhunt',
+  },
+  {
+    id: 'platformer',
+    emoji: '🍄',
+    name: 'Platformer',
+    description:
+      'A Mario-style side-scrolling platformer. Jump over enemies, collect coins, ' +
+      'and reach the flag. Supports WASD keyboard and hand-tracking controls.',
+    tags: ['Arcade', 'Platformer', '✋ Hand Tracking', '⌨️ WASD'],
+    bannerClass: 'game-card__banner--platformer',
   },
 ]
 
