@@ -33,7 +33,7 @@ type PlayerMode = '1p' | '2p'
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const DUCKS_PER_ROUND  = 3
-const SHOTS_PER_ROUND  = 3
+const SHOTS_PER_ROUND  = 10
 const DUCK_SIZE        = 52   // px - rendered duck diameter
 const DUCK_SPEED_BASE  = 2.5  // px per frame at 60 fps
 const DUCK_SPEED_INC   = 0.4  // speed increase per round
