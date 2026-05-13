@@ -616,6 +616,87 @@
   }
 }
 
+/* ── Duck escaped animation ─────────────────────────────────────────────────── */
+
+.dh-duck-sprite--escaped {
+  opacity: 0.7;
+  transition: opacity 0.4s;
+}
+
+/* ── Bird result overlay (hit / dog laugh per duck) ─────────────────────────── */
+
+.dh-bird-result {
+  position: absolute;
+  bottom: 12%;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  z-index: 35;
+  animation: dh-pop 0.2s ease-out;
+  pointer-events: none;
+}
+
+.dh-bird-result--miss .dh-missed-dog {
+  font-size: 3rem;
+  animation: dh-laugh 0.35s ease-in-out infinite alternate;
+}
+
+.dh-bird-result--hit .dh-hit-text {
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: #22c55e;
+  text-shadow: 0 0 10px rgba(34,197,94,0.6), 0 1px 0 #000;
+  letter-spacing: 0.1em;
+  animation: dh-pop 0.2s ease-out;
+}
+
+/* ── Dog rising animation ────────────────────────────────────────────────────── */
+
+.dh-dog-rising {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 3rem;
+  z-index: 30;
+  pointer-events: none;
+  animation: dh-dog-rise 0.5s ease-out forwards;
+}
+
+@keyframes dh-dog-rise {
+  0%   { transform: translateX(-50%) translateY(100%); }
+  100% { transform: translateX(-50%) translateY(0%); }
+}
+
+/* ── Round clear sub-text ────────────────────────────────────────────────────── */
+
+.dh-round-clear__sub {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #166534;
+  font-family: 'Courier New', Courier, monospace;
+  margin-top: 0.05rem;
+}
+
+/* ── Control bar mode label ──────────────────────────────────────────────────── */
+
+.dh-control-bar__mode-label {
+  font-size: 0.68rem;
+  font-weight: 900;
+  color: #facc15;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-family: 'Courier New', Courier, monospace;
+  margin-left: 0.35rem;
+  padding: 0.15rem 0.5rem;
+  background: #1a1500;
+  border: 1.5px solid #92400e;
+  border-radius: 4px;
+}
+
 /* ── Mode Selection Screen ──────────────────────────────────────────────────── */
 
 .dh-mode-select-overlay {
@@ -719,6 +800,15 @@
 .dh-mode-select__btn--2p:hover {
   background: #3b1f5e;
   border-color: #c084fc;
+}
+
+.dh-mode-select__btn--clay {
+  border-color: #f97316;
+}
+
+.dh-mode-select__btn--clay:hover {
+  background: #431407;
+  border-color: #fb923c;
 }
 
 .dh-mode-select__btn-icon {
