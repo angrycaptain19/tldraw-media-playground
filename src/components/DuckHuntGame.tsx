@@ -149,8 +149,9 @@ export default function DuckHuntGame() {
   const playerRoundRef   = useRef(1)
 
   // Hand tracking refs
-  const fireDwellRef = useRef(0)
-  const lastFireRef  = useRef(0)
+  const fireDwellRef  = useRef(0)
+  const lastFireRef   = useRef(0)
+  const handModeRef   = useRef(false)
 
   // keep refs in sync with state
   useEffect(() => { phaseRef.current         = phase          }, [phase])
@@ -169,6 +170,7 @@ export default function DuckHuntGame() {
   useEffect(() => { p1TotalHitRef.current    = p1TotalHit     }, [p1TotalHit])
   useEffect(() => { p2TotalHitRef.current    = p2TotalHit     }, [p2TotalHit])
   useEffect(() => { playerRoundRef.current   = playerRound    }, [playerRound])
+  useEffect(() => { handModeRef.current      = handMode       }, [handMode])
 
   // ── Fire (shoot) logic ─────────────────────────────────────────────────────
 
@@ -510,7 +512,7 @@ export default function DuckHuntGame() {
   const handleHandData = useCallback((data: HandData) => {
     const sky = skyRef.current
     if (!sky) return
-    if (!handMode) return
+    if (!handModeRef.current) return
 
     if (data.hands.length === 0) {
       fireDwellRef.current = 0
@@ -540,7 +542,8 @@ export default function DuckHuntGame() {
       fireDwellRef.current = 0
       fire(px, py)
     }
-  }, [handMode, fire])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fire])
 
   // ── Keyboard shortcuts ─────────────────────────────────────────────────────
 
@@ -644,17 +647,6 @@ export default function DuckHuntGame() {
         )}
       </div>
 
-      {/* ── Hand panel ──────────────────────────────────────────────── */}
-      {handMode && phase !== 'modeSelect' && (
-        <div className="dh-hand-panel">
-          <HandRecognitionPanel onHandData={handleHandData} />
-          <div className="dh-hand-hint">
-            <strong>Point</strong> index finger to aim ·{' '}
-            <strong>Close fist</strong> to shoot (~0.3 s dwell)
-          </div>
-        </div>
-      )}
-
       {/* ── Sky / Game Canvas ─────────────────────────────────────── */}
       <div
         ref={skyRef}
@@ -664,6 +656,21 @@ export default function DuckHuntGame() {
         onClick={handleSkyClick}
         onTouchStart={handleSkyTouchStart}
       >
+        {/* ── Floating hand panel overlay (camera corner) ──────────── */}
+        {handMode && (
+          <div className="dh-hand-overlay" onMouseMove={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
+            <HandRecognitionPanel
+              onHandData={handleHandData}
+              autoStart
+              defaultCollapsed={false}
+            />
+            <div className="dh-hand-hint">
+              <strong>Point</strong> index finger to aim ·{' '}
+              <strong>Close fist</strong> to shoot (~0.3 s dwell)
+            </div>
+          </div>
+        )}
+
         {/* Decorative clouds */}
         <div className="dh-cloud dh-cloud--1" />
         <div className="dh-cloud dh-cloud--2" />

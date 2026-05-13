@@ -913,3 +913,43 @@
   font-family: 'Courier New', Courier, monospace;
   margin-top: 0.1rem;
 }
+
+/* ── Floating hand-tracking overlay (camera corner) ───────────────────────── */
+/* Positioned as a fixed-size floating panel in the bottom-left of the sky.   */
+/* It does NOT consume vertical flex space — the game canvas stays full-size.  */
+
+.dh-hand-overlay {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  z-index: 50;
+  width: 240px;
+  max-width: 38vw;
+  pointer-events: auto;
+  filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.75));
+}
+
+/* Compact the HandRecognitionPanel inside the floating overlay */
+.dh-hand-overlay .hrp {
+  max-width: 100%;
+  font-size: 0.75rem;
+}
+
+.dh-hand-overlay .hrp__video-wrapper {
+  aspect-ratio: 4 / 3;
+}
+
+/* Keep stats area compact */
+.dh-hand-overlay .hrp__stats,
+.dh-hand-overlay .hrp__hint {
+  display: none;
+}
+
+.dh-hand-overlay .dh-hand-hint {
+  font-size: 0.62rem;
+  color: #6b7280;
+  line-height: 1.4;
+  margin-top: 0.3rem;
+  text-align: center;
+  padding: 0 0.25rem;
+}
