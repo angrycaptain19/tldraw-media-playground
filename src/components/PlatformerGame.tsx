@@ -673,38 +673,41 @@ export default function PlatformerGame() {
           </div>
         )}
 
-        {/* Hand panel overlay */}
-        {handMode && (
-          <div className="pl-hand-overlay"
-            onMouseMove={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
+      </div>
+
+      {/* ── Hand panel (below game canvas, does not block gameplay) ──────── */}
+      {handMode && (
+        <div className="pl-hand-panel"
+          onMouseMove={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
+          <div className="pl-hand-panel__camera">
             <HandRecognitionPanel onHandData={handleHandData} autoStart defaultCollapsed={false} />
-            <div className="pl-hand-hint">
-              <div className="pl-hand-hint__row">
-                <span className={`pl-hand-hint__badge${handDebug.leftGesture === GESTURE_FIST ? ' pl-hand-hint__badge--active' : ''}`}>
-                  ✊ Left fist
-                </span>
-                <span className="pl-hand-hint__action">← move left</span>
-              </div>
-              <div className="pl-hand-hint__row">
-                <span className={`pl-hand-hint__badge${handDebug.rightGesture === GESTURE_FIST ? ' pl-hand-hint__badge--active' : ''}`}>
-                  ✊ Right fist
-                </span>
-                <span className="pl-hand-hint__action">→ move right</span>
-              </div>
-              <div className="pl-hand-hint__row">
-                <span className={`pl-hand-hint__badge${handDebug.isClap ? ' pl-hand-hint__badge--active' : ''}`}>
-                  👏 Clap
-                </span>
-                <span className="pl-hand-hint__action">↑ jump (+ fist = directional)</span>
-              </div>
-              <div className="pl-hand-hint__row">
-                <span className="pl-hand-hint__badge">🖐️ Open palm</span>
-                <span className="pl-hand-hint__action">⏸ pause / resume</span>
-              </div>
+          </div>
+          <div className="pl-hand-hint">
+            <div className="pl-hand-hint__row">
+              <span className={`pl-hand-hint__badge${handDebug.leftGesture === GESTURE_FIST ? ' pl-hand-hint__badge--active' : ''}`}>
+                ✊ Left fist
+              </span>
+              <span className="pl-hand-hint__action">← move left</span>
+            </div>
+            <div className="pl-hand-hint__row">
+              <span className={`pl-hand-hint__badge${handDebug.rightGesture === GESTURE_FIST ? ' pl-hand-hint__badge--active' : ''}`}>
+                ✊ Right fist
+              </span>
+              <span className="pl-hand-hint__action">→ move right</span>
+            </div>
+            <div className="pl-hand-hint__row">
+              <span className={`pl-hand-hint__badge${handDebug.isClap ? ' pl-hand-hint__badge--active' : ''}`}>
+                👏 Clap
+              </span>
+              <span className="pl-hand-hint__action">↑ jump (+ fist = directional)</span>
+            </div>
+            <div className="pl-hand-hint__row">
+              <span className="pl-hand-hint__badge">🖐️ Open palm</span>
+              <span className="pl-hand-hint__action">⏸ pause / resume</span>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* ── HUD ──────────────────────────────────────────────────────────── */}
       <div className="pl-hud">
