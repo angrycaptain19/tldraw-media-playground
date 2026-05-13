@@ -2,7 +2,13 @@
 // Mario-style side-scrolling platformer with:
 //   • Physics: gravity, velocity, platform collision
 //   • WASD / Arrow key controls (always active)
-//   • Hand-tracking: indexTip.x for left/right, Thumb_Up / Closed_Fist for jump
+//   • Hand-tracking (improved two-hand gesture controls):
+//       Right-hand Closed_Fist  → move right
+//       Left-hand  Closed_Fist  → move left
+//       Both hands close together (clap / hands-near) → jump
+//       Clap + right fist held  → jump right
+//       Clap + left  fist held  → jump left
+//       Open_Palm (either hand) → pause / resume
 //   • Single playable level with a goal flag to win
 //   • HUD: score, coins collected, lives, progress bar
 
@@ -22,6 +28,13 @@ const PLAYER_H       = 44
 const LEVEL_W        = 3200
 const LEVEL_H        = 520
 const GROUND_Y       = LEVEL_H - 64
+
+// Normalised horizontal distance (0-1 scale) below which both index tips are
+// considered "close together" = a clap/hands-together gesture.
+const CLAP_THRESHOLD = 0.20
+
+// Minimum gesture confidence to act on a recognised gesture.
+const MIN_GESTURE_CONF = 0.65
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -119,6 +132,31 @@ function makePlayer(): Player {
            onGround: false, facingRight: true, animFrame: 0, animTick: 0 }
 }
 
+// ── Hand input smoothing ───────────────────────────────────────────────────────
+// A tiny ring-buffer majority-vote smoother so flaky frames don't flip controls.
+// We keep the last N gesture readings and require a majority to commit a change.
+
+const GESTURE_HISTORY = 4  // frames to smooth over
+
+function createGestureBuffer() {
+  return { buf: Array(GESTURE_HISTORY).fill('None') as string[], idx: 0 }
+}
+
+function pushGesture(gb: { buf: string[]; idx: number }, gesture: string) {
+  gb.buf[gb.idx] = gesture
+  gb.idx = (gb.idx + 1) % GESTURE_HISTORY
+}
+
+function dominantGesture(gb: { buf: string[]; idx: number }): string {
+  const counts: Record<string, number> = {}
+  for (const g of gb.buf) counts[g] = (counts[g] ?? 0) + 1
+  let best = 'None', bestN = 0
+  for (const [g, n] of Object.entries(counts)) {
+    if (n > bestN) { best = g; bestN = n }
+  }
+  return best
+}
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function PlatformerGame() {
@@ -131,6 +169,11 @@ export default function PlatformerGame() {
   const [camera,   setCamera]   = useState(0)
   const [handMode, setHandMode] = useState(false)
 
+  // Live debug display for hand gesture panel
+  const [handDebug, setHandDebug] = useState<{
+    leftGesture: string; rightGesture: string; isClap: boolean
+  }>({ leftGesture: 'None', rightGesture: 'None', isClap: false })
+
   const phaseRef    = useRef<GamePhase>('playing')
   const playerRef   = useRef<Player>(makePlayer())
   const coinsRef    = useRef<Coin[]>(INITIAL_COINS.map(c => ({ ...c })))
@@ -141,14 +184,36 @@ export default function PlatformerGame() {
   const rafRef      = useRef<number | null>(null)
   const handModeRef = useRef(false)
   const keysRef     = useRef<Set<string>>(new Set())
+
+  // Smoothed hand input fed into the game loop each tick
   const handInputRef = useRef({ left: false, right: false, jump: false })
-  const jumpLatchRef = useRef(false)
+
+  // Per-hand gesture smoothing buffers (reset when hand mode toggled)
+  const leftBufRef  = useRef(createGestureBuffer())
+  const rightBufRef = useRef(createGestureBuffer())
+
+  // Clap latch: once a clap-jump fires, don't re-fire until hands move apart
+  const clapLatchRef = useRef(false)
+
+  // Open-palm pause latch (debounce so one open-palm doesn't toggle twice)
+  const palmPauseLatchRef = useRef(false)
+
   const canvasRef   = useRef<HTMLDivElement>(null)
 
   useEffect(() => { phaseRef.current    = phase    }, [phase])
   useEffect(() => { livesRef.current    = lives    }, [lives])
   useEffect(() => { scoreRef.current    = score    }, [score])
-  useEffect(() => { handModeRef.current = handMode }, [handMode])
+  useEffect(() => {
+    handModeRef.current = handMode
+    if (!handMode) {
+      // Clear hand state when mode is disabled
+      handInputRef.current = { left: false, right: false, jump: false }
+      leftBufRef.current  = createGestureBuffer()
+      rightBufRef.current = createGestureBuffer()
+      clapLatchRef.current     = false
+      palmPauseLatchRef.current = false
+    }
+  }, [handMode])
 
   // ── Reset ──────────────────────────────────────────────────────────────────
 
@@ -203,6 +268,10 @@ export default function PlatformerGame() {
     else { p.vx = 0 }
 
     if (doJump && p.onGround) { p.vy = -JUMP_FORCE; p.onGround = false }
+
+    // Jump is a single-frame impulse; clear it after consuming
+    if (hand.jump) handInputRef.current = { ...hand, jump: false }
+
     p.vy += GRAVITY
     p.x  += p.vx
     p.y  += p.vy
@@ -327,25 +396,103 @@ export default function PlatformerGame() {
   }, [resetGame])
 
   // ── Hand tracking ──────────────────────────────────────────────────────────
+  //
+  // Gesture mapping (two-hand scheme):
+  //   Right-hand Closed_Fist  → move right   (continuous while held)
+  //   Left-hand  Closed_Fist  → move left    (continuous while held)
+  //   Both hands close together (index tips within CLAP_THRESHOLD of each other)
+  //                           → jump (one shot per clap; latch until hands separate)
+  //   Clap while right fist   → jump right
+  //   Clap while left  fist   → jump left
+  //   Either hand Open_Palm   → pause / resume (debounced)
+  //
+  // Robustness tricks:
+  //   • Per-hand gesture is majority-voted over the last GESTURE_HISTORY frames
+  //     so a single misclassified frame does NOT change the action.
+  //   • We require gestureScore >= MIN_GESTURE_CONF to accept a classification.
+  //   • "No hand" detected → its gesture is treated as 'None' (slot preserved).
 
   const handleHandData = useCallback((data: HandData) => {
     if (!handModeRef.current) return
-    if (data.hands.length === 0) {
-      handInputRef.current = { left: false, right: false, jump: false }
-      jumpLatchRef.current = false; return
+
+    // ── 1. Sort hands into Left / Right by MediaPipe handedness ───────────
+    //  MediaPipe reports "Left"/"Right" from the *person's* perspective
+    //  (mirror-aware), so "Right" = player's right hand.
+    let leftX:  number | null = null
+    let rightX: number | null = null
+    let rawLeftGesture  = 'None'
+    let rawRightGesture = 'None'
+    let hasPalmPause    = false
+
+    for (const hand of data.hands) {
+      const g = hand.gestureScore >= MIN_GESTURE_CONF ? hand.gesture : 'None'
+
+      // MediaPipe uses mirrored video by default → "Left" hand appears on
+      // the right side of the frame.  We flip indexTip.x accordingly.
+      const tipX = 1 - hand.indexTip.x  // un-mirror so 0=left, 1=right in world space
+
+      if (hand.handedness === 'Left') {
+        rawLeftGesture = g
+        leftX = tipX
+      } else {
+        rawRightGesture = g
+        rightX = tipX
+      }
+
+      if (g === GESTURE_OPEN_PALM) hasPalmPause = true
     }
-    const hand = data.hands[0]
-    const mx = 1 - hand.indexTip.x
-    const goLeft  = mx < 0.40
-    const goRight = mx > 0.60
-    const wantsJump = hand.gesture === 'Thumb_Up' || hand.gesture === GESTURE_FIST
-    let jump = false
-    if (wantsJump && !jumpLatchRef.current) { jump = true; jumpLatchRef.current = true }
-    else if (!wantsJump) { jumpLatchRef.current = false }
-    if (hand.gesture === GESTURE_OPEN_PALM && phaseRef.current === 'playing') {
-      setPhase('paused'); phaseRef.current = 'paused'
+
+    // ── 2. Push into smoothing buffers ────────────────────────────────────
+    pushGesture(leftBufRef.current,  rawLeftGesture)
+    pushGesture(rightBufRef.current, rawRightGesture)
+
+    const leftGesture  = dominantGesture(leftBufRef.current)
+    const rightGesture = dominantGesture(rightBufRef.current)
+
+    // ── 3. Directional movement ───────────────────────────────────────────
+    const goLeft  = leftGesture  === GESTURE_FIST
+    const goRight = rightGesture === GESTURE_FIST
+
+    // ── 4. Clap / jump detection ──────────────────────────────────────────
+    // Both hands visible AND close together → clap = jump
+    const bothVisible = leftX !== null && rightX !== null
+    const isClap = bothVisible && Math.abs(rightX! - leftX!) < CLAP_THRESHOLD
+
+    let doJump = false
+    if (isClap && !clapLatchRef.current) {
+      doJump = true
+      clapLatchRef.current = true
+    } else if (!isClap) {
+      clapLatchRef.current = false
     }
-    handInputRef.current = { left: goLeft, right: goRight, jump }
+
+    // ── 5. Pause toggle (open palm, debounced) ────────────────────────────
+    if (hasPalmPause && !palmPauseLatchRef.current) {
+      palmPauseLatchRef.current = true
+      if (phaseRef.current === 'playing') {
+        setPhase('paused'); phaseRef.current = 'paused'
+      } else if (phaseRef.current === 'paused') {
+        setPhase('playing'); phaseRef.current = 'playing'
+      }
+    } else if (!hasPalmPause) {
+      palmPauseLatchRef.current = false
+    }
+
+    // ── 6. Directional jump override ──────────────────────────────────────
+    // If clapping AND a fist is held, apply horizontal direction to the jump
+    // by setting left/right on the same tick as the jump impulse.
+    const jumpLeft  = doJump && goLeft
+    const jumpRight = doJump && goRight
+
+    // ── 7. Commit to handInputRef ─────────────────────────────────────────
+    handInputRef.current = {
+      left:  goLeft  || jumpLeft,
+      right: goRight || jumpRight,
+      jump:  doJump,
+    }
+
+    // ── 8. Update debug display ───────────────────────────────────────────
+    setHandDebug({ leftGesture, rightGesture, isClap })
   }, [])
 
   // ── Derived ────────────────────────────────────────────────────────────────
@@ -385,7 +532,7 @@ export default function PlatformerGame() {
         )}
         {handMode && (
           <span className="pl-control-bar__hint">
-            Tilt hand left/right to move · 👍 or ✊ to jump · 🖐️ to pause
+            ✊ Right fist = move right · ✊ Left fist = move left · 👏 Clap = jump · 👏+✊ = jump that direction · 🖐️ = pause
           </span>
         )}
       </div>
@@ -484,6 +631,7 @@ export default function PlatformerGame() {
             <div className="pl-overlay__box">
               <div className="pl-overlay__title">⏸ PAUSED</div>
               <div className="pl-overlay__sub">Press P / Esc · or click Resume</div>
+              {handMode && <div className="pl-overlay__sub">🖐️ Open palm to resume</div>}
             </div>
           </div>
         )}
@@ -519,7 +667,28 @@ export default function PlatformerGame() {
             onMouseMove={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
             <HandRecognitionPanel onHandData={handleHandData} autoStart defaultCollapsed={false} />
             <div className="pl-hand-hint">
-              <strong>Tilt left/right</strong> to move · <strong>👍 or ✊</strong> to jump
+              <div className="pl-hand-hint__row">
+                <span className={`pl-hand-hint__badge${handDebug.leftGesture === GESTURE_FIST ? ' pl-hand-hint__badge--active' : ''}`}>
+                  ✊ Left fist
+                </span>
+                <span className="pl-hand-hint__action">← move left</span>
+              </div>
+              <div className="pl-hand-hint__row">
+                <span className={`pl-hand-hint__badge${handDebug.rightGesture === GESTURE_FIST ? ' pl-hand-hint__badge--active' : ''}`}>
+                  ✊ Right fist
+                </span>
+                <span className="pl-hand-hint__action">→ move right</span>
+              </div>
+              <div className="pl-hand-hint__row">
+                <span className={`pl-hand-hint__badge${handDebug.isClap ? ' pl-hand-hint__badge--active' : ''}`}>
+                  👏 Clap
+                </span>
+                <span className="pl-hand-hint__action">↑ jump (+ fist = directional)</span>
+              </div>
+              <div className="pl-hand-hint__row">
+                <span className="pl-hand-hint__badge">🖐️ Open palm</span>
+                <span className="pl-hand-hint__action">⏸ pause / resume</span>
+              </div>
             </div>
           </div>
         )}
