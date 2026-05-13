@@ -289,8 +289,10 @@
 }
 
 .dh-gameover-dog {
-  font-size: 2.5rem;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  image-rendering: pixelated;
   animation: dh-laugh 0.4s ease-in-out infinite alternate;
 }
 
@@ -352,8 +354,10 @@
 }
 
 .dh-missed-dog {
-  font-size: 3rem;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  image-rendering: pixelated;
   animation: dh-laugh 0.35s ease-in-out infinite alternate;
 }
 
@@ -660,7 +664,10 @@
 }
 
 .dh-bird-result--miss .dh-missed-dog {
-  font-size: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  image-rendering: pixelated;
   animation: dh-laugh 0.35s ease-in-out infinite alternate;
 }
 
@@ -680,7 +687,10 @@
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
-  font-size: 3rem;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  image-rendering: pixelated;
   z-index: 30;
   pointer-events: none;
   animation: dh-dog-rise 0.5s ease-out forwards;
