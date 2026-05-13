@@ -207,15 +207,21 @@
 }
 
 .hrp__badge--pointing {
-  background: rgba(250, 204, 21, 0.2);
-  color: #fbbf24;
-  border: 1px solid rgba(251, 191, 36, 0.4);
+  background: rgba(0, 229, 255, 0.2);
+  color: #00e5ff;
+  border: 1px solid rgba(0, 229, 255, 0.4);
 }
 
-.hrp__badge--pinch {
-  background: rgba(34, 197, 94, 0.2);
-  color: #4ade80;
-  border: 1px solid rgba(74, 222, 128, 0.4);
+.hrp__badge--fist {
+  background: rgba(255, 64, 129, 0.2);
+  color: #ff4081;
+  border: 1px solid rgba(255, 64, 129, 0.4);
+}
+
+.hrp__badge--palm {
+  background: rgba(76, 175, 80, 0.2);
+  color: #4caf50;
+  border: 1px solid rgba(76, 175, 80, 0.4);
 }
 
 .hrp__hand-row {
@@ -238,16 +244,28 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Pinch bar */
+/* Gesture badge (replaces pinch bar) */
 
-.hrp__pinch-bar {
+.hrp__gesture-badge {
   display: inline-block;
-  height: 8px;
-  min-width: 2px;
-  max-width: 80px;
-  border-radius: 4px;
-  background: linear-gradient(90deg, #22c55e, #86efac);
-  transition: width 0.1s;
+  padding: 0.1rem 0.5rem;
+  border-radius: 99px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: rgba(148, 163, 184, 0.15);
+  color: #94a3b8;
+}
+
+.hrp__gesture-badge--closed-fist  { background: rgba(255,64,129,0.2);  color: #ff4081; }
+.hrp__gesture-badge--open-palm    { background: rgba(74,222,128,0.2);   color: #4ade80; }
+.hrp__gesture-badge--pointing-up  { background: rgba(0,229,255,0.2);    color: #00e5ff; }
+.hrp__gesture-badge--thumb-up     { background: rgba(250,204,21,0.2);   color: #fbbf24; }
+.hrp__gesture-badge--victory      { background: rgba(168,85,247,0.2);   color: #c084fc; }
+.hrp__gesture-badge--none         { background: rgba(148,163,184,0.15); color: #94a3b8; }
+
+.hrp__gesture-score {
+  color: #64748b;
+  font-size: 0.75rem;
 }
 
 /* No-hands message */
