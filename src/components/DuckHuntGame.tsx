@@ -6,6 +6,7 @@
 //   • HUD: Score, Hi-Score, Round, Shots Left (ammo icons), Ducks Hit, Pause
 //   • Round progression, game-over on out of shots, dog laugh on miss
 //   • Mode selection screen: Single Player or 2 Player (alternating rounds)
+//   • Visual shot feedback: muzzle-flash on crosshair, hit explosion, miss ripple
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import HandRecognitionPanel from './HandRecognitionPanel'
@@ -29,6 +30,19 @@ interface Duck {
 
 type GamePhase = 'modeSelect' | 'idle' | 'playing' | 'roundOver' | 'missed' | 'gameOver'
 type PlayerMode = '1p' | '2p'
+
+// ── Shot-effect types ──────────────────────────────────────────────────────────
+
+type ShotKind = 'hit' | 'miss'
+
+interface ShotEffect {
+  id: number
+  x: number
+  y: number
+  kind: ShotKind
+}
+
+let shotEffectIdCounter = 0
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -117,8 +131,12 @@ export default function DuckHuntGame() {
   const [totalHit, setTotalHit]   = useState(0)
   const [paused, setPaused]       = useState(false)
   const [ducks, setDucks]         = useState<Duck[]>([])
-  const [crosshair, setCrosshair] = useState<{ x: number; y: number } | null>(null)
-  const [handMode, setHandMode]   = useState(false)
+  const [crosshair, setCrosshair]     = useState<{ x: number; y: number } | null>(null)
+  const [handMode, setHandMode]       = useState(false)
+  const [shotEffects, setShotEffects] = useState<ShotEffect[]>([])
+  // Tracks whether the crosshair should show a muzzle-flash animation
+  const [firing, setFiring]           = useState(false)
+  const firingTimerRef                = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── 2-Player state ──────────────────────────────────────────────────────────
   const [currentPlayer, setCurrentPlayer] = useState<1 | 2>(1)
@@ -187,6 +205,12 @@ export default function DuckHuntGame() {
     setShotsLeft(newShots)
     shotsRef.current = newShots
 
+
+    // ── Muzzle flash on every shot ────────────────────────────────────────────
+    setFiring(true)
+    if (firingTimerRef.current) clearTimeout(firingTimerRef.current)
+    firingTimerRef.current = setTimeout(() => setFiring(false), 180)
+
     const hitIdx = ducksRef.current.findIndex(d => {
       if (!d.alive || d.falling) return false
       const r = DUCK_SIZE / 2 + 8
@@ -197,6 +221,13 @@ export default function DuckHuntGame() {
       setDucks(prev => prev.map((d, i) =>
         i === hitIdx ? { ...d, alive: false, falling: true, fallVy: -2 } : d
       ))
+
+      // ── Hit explosion effect ──────────────────────────────────────────────
+      const hitEffect: ShotEffect = { id: ++shotEffectIdCounter, x: px, y: py, kind: 'hit' }
+      setShotEffects(prev => [...prev, hitEffect])
+      setTimeout(() => {
+        setShotEffects(prev => prev.filter(e => e.id !== hitEffect.id))
+      }, 700)
 
       const newScore = scoreRef.current + POINTS_PER_DUCK
       const newHit   = ducksHitRef.current + 1
@@ -246,6 +277,13 @@ export default function DuckHuntGame() {
 
       return
     }
+
+    // ── Miss ripple effect ───────────────────────────────────────────────────
+    const missEffect: ShotEffect = { id: ++shotEffectIdCounter, x: px, y: py, kind: 'miss' }
+    setShotEffects(prev => [...prev, missEffect])
+    setTimeout(() => {
+      setShotEffects(prev => prev.filter(e => e.id !== missEffect.id))
+    }, 500)
 
     if (newShots <= 0) {
       const anyAlive = ducksRef.current.some(d => d.alive && !d.falling)
@@ -827,10 +865,10 @@ export default function DuckHuntGame() {
           )
         })}
 
-        {/* Crosshair */}
+        {/* Crosshair + muzzle flash */}
         {crosshair && phase === 'playing' && !paused && (
           <div
-            className="dh-crosshair"
+            className={`dh-crosshair${firing ? ' dh-crosshair--firing' : ''}`}
             style={{ left: crosshair.x, top: crosshair.y }}
             aria-hidden
           >
@@ -842,8 +880,20 @@ export default function DuckHuntGame() {
               <line x1="0"  y1="18" x2="9"  y2="18" stroke="#ef4444" strokeWidth="2.5" />
               <line x1="27" y1="18" x2="36" y2="18" stroke="#ef4444" strokeWidth="2.5" />
             </svg>
+            {/* Muzzle flash ring */}
+            {firing && <div className="dh-muzzle-flash" aria-hidden />}
           </div>
         )}
+
+        {/* Shot effects (hit explosions + miss ripples) */}
+        {shotEffects.map(effect => (
+          <div
+            key={effect.id}
+            className={`dh-shot-effect dh-shot-effect--${effect.kind}`}
+            style={{ left: effect.x, top: effect.y }}
+            aria-hidden
+          />
+        ))}
 
         {/* No shots left notice */}
         {shotsLeft <= 0 && phase === 'playing' && (

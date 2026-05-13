@@ -953,3 +953,80 @@
   text-align: center;
   padding: 0 0.25rem;
 }
+
+/* ── Shot visual feedback ─────────────────────────────────────────────────── */
+
+/* Crosshair muzzle-flash state: scale up briefly when firing */
+.dh-crosshair--firing {
+  animation: dh-crosshair-fire 0.18s ease-out forwards;
+}
+
+@keyframes dh-crosshair-fire {
+  0%   { transform: translate(-50%, -50%) scale(1); }
+  30%  { transform: translate(-50%, -50%) scale(1.5); }
+  100% { transform: translate(-50%, -50%) scale(1); }
+}
+
+/* Muzzle flash: bright orange burst centred on the crosshair */
+.dh-muzzle-flash {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 52px;
+  height: 52px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff9 0%, #f97316cc 40%, transparent 72%);
+  pointer-events: none;
+  animation: dh-muzzle 0.18s ease-out forwards;
+}
+
+@keyframes dh-muzzle {
+  0%   { opacity: 1; transform: translate(-50%, -50%) scale(0.4); }
+  50%  { opacity: 0.9; transform: translate(-50%, -50%) scale(1.2); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.6); }
+}
+
+/* Base shot-effect element — centred on the click position */
+.dh-shot-effect {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  border-radius: 50%;
+}
+
+/* ── Hit: starburst / explosion ─────────────────────────────────────────── */
+
+.dh-shot-effect--hit {
+  width: 72px;
+  height: 72px;
+  background: radial-gradient(circle, #fff 0%, #facc15 30%, #f97316 55%, transparent 75%);
+  box-shadow:
+    0 0 18px 6px #facc1599,
+    0 0 8px 2px #f9731688;
+  animation: dh-shot-hit 0.7s ease-out forwards;
+}
+
+@keyframes dh-shot-hit {
+  0%   { opacity: 1; transform: translate(-50%, -50%) scale(0.2); }
+  15%  { opacity: 1; transform: translate(-50%, -50%) scale(1.3); }
+  50%  { opacity: 0.85; transform: translate(-50%, -50%) scale(1.05); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.5); }
+}
+
+/* ── Miss: expanding concentric ripple ──────────────────────────────────── */
+
+.dh-shot-effect--miss {
+  width: 48px;
+  height: 48px;
+  border: 3px solid #ef4444;
+  background: transparent;
+  box-shadow: 0 0 6px 2px #ef444455;
+  animation: dh-shot-miss 0.5s ease-out forwards;
+}
+
+@keyframes dh-shot-miss {
+  0%   { opacity: 0.9; transform: translate(-50%, -50%) scale(0.1); }
+  60%  { opacity: 0.6; transform: translate(-50%, -50%) scale(1.1); }
+  100% { opacity: 0;   transform: translate(-50%, -50%) scale(1.6); }
+}
