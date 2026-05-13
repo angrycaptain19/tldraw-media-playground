@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import HandRecognitionPanel from './HandRecognitionPanel'
 import type { HandData } from '../hooks/useHandRecognition'
 import { GESTURE_FIST, GESTURE_NONE } from '../hooks/useHandRecognition'
+import { NesDog } from './NesSprites'
 import './DuckHuntGame.css'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -1170,7 +1171,7 @@ export default function DuckHuntGame() {
           <div className="dh-overlay">
             <div className="dh-overlay__box dh-overlay__box--gameover">
               <div className="dh-overlay__title dh-overlay__title--gameover">GAME OVER</div>
-              <div className="dh-gameover-dog">🐕</div>
+              <div className="dh-gameover-dog"><NesDog state="laugh" scale={4} /></div>
               <div className="dh-overlay__sub">
                 Score: {score}
                 {score >= hiScore && score > 0 ? ' 🏆 NEW HI-SCORE!' : ''}
@@ -1190,7 +1191,7 @@ export default function DuckHuntGame() {
           <div className="dh-overlay">
             <div className="dh-overlay__box dh-overlay__box--gameover">
               <div className="dh-overlay__title dh-overlay__title--gameover">ROUND FAILED</div>
-              <div className="dh-gameover-dog">🐕</div>
+              <div className="dh-gameover-dog"><NesDog state="laugh" scale={4} /></div>
               <div className="dh-overlay__sub">
                 Hit {birdsHit}/{BIRDS_PER_ROUND} — need {MIN_DUCKS_PASS} to pass
               </div>
@@ -1213,7 +1214,7 @@ export default function DuckHuntGame() {
           <div className={`dh-bird-result${!lastBirdHit ? ' dh-bird-result--miss' : ' dh-bird-result--hit'}`}>
             {!lastBirdHit ? (
               <>
-                <div className="dh-missed-dog">🐕</div>
+                <div className="dh-missed-dog"><NesDog state="laugh" scale={3} /></div>
                 <div className="dh-missed-text">HA HA HA!</div>
               </>
             ) : (
@@ -1223,7 +1224,7 @@ export default function DuckHuntGame() {
         )}
 
         {/* Dog rising from grass when duck escapes */}
-        {dogVisible && <div className="dh-dog-rising" aria-hidden>🐕</div>}
+        {dogVisible && <div className="dh-dog-rising" aria-hidden><NesDog state="sniff" scale={3} /></div>}
 
         {/* Animated ducks / clay pigeons */}
         {ducks.map(duck => {
