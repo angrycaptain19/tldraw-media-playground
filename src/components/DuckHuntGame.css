@@ -121,7 +121,8 @@
   position: relative;
   flex: 1;
   min-height: 0;
-  background: linear-gradient(to bottom, #1e40af 0%, #3b82f6 30%, #7ec8e3 65%, #bae6fd 85%, #d1fae5 100%);
+  /* NES-accurate flat sky — original Duck Hunt uses a single solid blue tile */
+  background: #5C94FC;
   cursor: crosshair;
   overflow: hidden;
 }
@@ -130,92 +131,29 @@
   cursor: default;
 }
 
-/* ── Clouds ──────────────────────────────────────────────────────────────── */
+/* ── NES Pixel-art Clouds ─────────────────────────────────────────────────── */
+/* CSS border-radius clouds removed — replaced by NesCloud SVG components.    */
+/* NES clouds are flat white stacked rectangles (crispEdges) with a grey      */
+/* shadow bottom row, faithful to the original hardware PPU output.            */
 
-.dh-cloud {
-  position: absolute;
-  background: rgba(255, 255, 255, 0.85);
-  border-radius: 50px;
+.dh-nes-cloud {
+  /* Pixel-art rendering */
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  /* Gentle horizontal drift matching classic NES behaviour */
+  animation: dh-nes-cloud-drift 28s linear infinite;
 }
 
-.dh-cloud::before,
-.dh-cloud::after {
-  content: '';
-  position: absolute;
-  background: inherit;
-  border-radius: 50%;
+@keyframes dh-nes-cloud-drift {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-18px); }
 }
 
-.dh-cloud--1 {
-  width: 120px;
-  height: 35px;
-  top: 12%;
-  left: 8%;
-  animation: dh-float 18s ease-in-out infinite;
-}
+/* ── NES Scenery SVG ──────────────────────────────────────────────────────── */
 
-.dh-cloud--1::before {
-  width: 60px;
-  height: 50px;
-  top: -25px;
-  left: 20px;
-}
-
-.dh-cloud--1::after {
-  width: 45px;
-  height: 40px;
-  top: -20px;
-  left: 55px;
-}
-
-.dh-cloud--2 {
-  width: 100px;
-  height: 30px;
-  top: 22%;
-  left: 50%;
-  animation: dh-float 22s ease-in-out infinite reverse;
-}
-
-.dh-cloud--2::before {
-  width: 50px;
-  height: 45px;
-  top: -22px;
-  left: 15px;
-}
-
-.dh-cloud--2::after {
-  width: 40px;
-  height: 35px;
-  top: -18px;
-  left: 50px;
-}
-
-.dh-cloud--3 {
-  width: 90px;
-  height: 28px;
-  top: 8%;
-  right: 15%;
-  animation: dh-float 20s ease-in-out infinite;
-  animation-delay: -7s;
-}
-
-.dh-cloud--3::before {
-  width: 45px;
-  height: 40px;
-  top: -20px;
-  left: 12px;
-}
-
-.dh-cloud--3::after {
-  width: 35px;
-  height: 32px;
-  top: -16px;
-  left: 45px;
-}
-
-@keyframes dh-float {
-  0%, 100% { transform: translateY(0px); }
-  50%       { transform: translateY(-8px); }
+.dh-nes-scenery {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 
 /* ── Overlays ─────────────────────────────────────────────────────────────── */
@@ -409,46 +347,22 @@
   position: relative;
   flex-shrink: 0;
   height: 64px;
-  background: linear-gradient(to bottom, #4ade80, #16a34a);
-  border-top: 3px solid #15803d;
+  /* NES-accurate two-tone grass strip */
+  background: linear-gradient(
+    to bottom,
+    #70C000 0px, #70C000 12px,   /* bright top stripe */
+    #388000 12px, #388000 100%   /* darker lower body */
+  );
+  border-top: 3px solid #006800; /* dark outline pixel */
   overflow: visible;
 }
 
-/* ── Bushes ─────────────────────────────────────────────────────────────────── */
+/* ── NES Pixel-art Bushes ───────────────────────────────────────────────────── */
+/* CSS border-radius bushes removed — replaced by NesBush SVG components.      */
 
-.dh-bush {
-  position: absolute;
-  bottom: 0;
-  width: 72px;
-  height: 72px;
-  background: radial-gradient(circle at 40% 40%, #22c55e, #166534);
-  border: 2px solid #14532d;
-  border-radius: 50% 50% 35% 35%;
-  transform: translateX(-50%);
-}
-
-.dh-bush::before {
-  content: '';
-  position: absolute;
-  width: 44px;
-  height: 44px;
-  background: radial-gradient(circle at 40% 40%, #4ade80, #15803d);
-  border: 2px solid #14532d;
-  border-radius: 50%;
-  top: -18px;
-  left: 8px;
-}
-
-.dh-bush::after {
-  content: '';
-  position: absolute;
-  width: 38px;
-  height: 38px;
-  background: radial-gradient(circle at 40% 40%, #86efac, #166534);
-  border: 2px solid #14532d;
-  border-radius: 50%;
-  top: -14px;
-  left: 28px;
+.dh-nes-bush {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
 
 /* ── HUD bar ───────────────────────────────────────────────────────────────── */
@@ -581,25 +495,6 @@
   .dh-hud-cell {
     flex: 1 1 70px;
     margin: 0;
-  }
-
-  .dh-bush {
-    width: 52px;
-    height: 52px;
-  }
-
-  .dh-bush::before {
-    width: 32px;
-    height: 32px;
-    top: -12px;
-    left: 6px;
-  }
-
-  .dh-bush::after {
-    width: 28px;
-    height: 28px;
-    top: -10px;
-    left: 22px;
   }
 
   .dh-ground {
@@ -871,7 +766,8 @@
 /* ── 2P Sky tint (subtle purple hue for Player 2) ───────────────────────────── */
 
 .dh-sky--p2 {
-  background: linear-gradient(to bottom, #312e81 0%, #6d28d9 30%, #8b5cf6 65%, #c4b5fd 85%, #d1fae5 100%);
+  /* NES-palette purple sky tint for player 2 */
+  background: #7840D0;
 }
 
 /* ── 2P turn badge (corner indicator) ──────────────────────────────────────── */
