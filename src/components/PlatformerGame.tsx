@@ -245,9 +245,21 @@ export default function PlatformerGame() {
         return t <= 0 ? { ...e, alive: false } : { ...e, squishTimer: t }
       }
       let { x, vx } = e
+      const prevX = x
       x += vx
       if (x <= 0 || x >= LEVEL_W - PLAYER_W) vx = -vx
       const ey = e.y
+      // Reverse and undo move if the enemy walks into a solid (non-cloud) platform from the side
+      const hitWall = PLATFORMS.some(pl => {
+        if (pl.kind === 'cloud') return false
+        if (!rectOverlap(x, ey, PLAYER_W, PLAYER_H, pl.x, pl.y, pl.w, pl.h)) return false
+        // Already overlapping before the move? skip (edge-case safety)
+        if (rectOverlap(prevX, ey, PLAYER_W, PLAYER_H, pl.x, pl.y, pl.w, pl.h)) return false
+        // Sitting on top of this platform is not a side collision
+        if (ey + PLAYER_H <= pl.y + 4) return false
+        return true
+      })
+      if (hitWall) { vx = -vx; x = prevX }
       const over = PLATFORMS.some(pl =>
         x + PLAYER_W > pl.x && x < pl.x + pl.w &&
         ey + PLAYER_H >= pl.y && ey + PLAYER_H <= pl.y + 10
