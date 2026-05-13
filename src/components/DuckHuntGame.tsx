@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import HandRecognitionPanel from './HandRecognitionPanel'
 import type { HandData } from '../hooks/useHandRecognition'
 import { GESTURE_FIST, GESTURE_NONE } from '../hooks/useHandRecognition'
+import { NesDog, NesDuck, NesClay } from './NesSprites'
 import './DuckHuntGame.css'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -152,38 +153,9 @@ function ModeSelectScreen({ onSelect }: { onSelect: (mode: GameMode) => void }) 
 
 // ── SVG duck sprite (3-frame wing animation) ──────────────────────────────────
 
-function DuckSvg({ facing, wingFrame }: { facing: 'left' | 'right'; wingFrame: number }) {
-  // wing cy: 0=up(24) 1=mid(28) 2=down(32)
-  const wingY = wingFrame === 0 ? 24 : wingFrame === 1 ? 28 : 32
-  const eyeX  = facing === 'right' ? 30 : 22
-  const billX = facing === 'right' ? 36 : 16
 
-  return (
-    <svg viewBox="0 0 52 52" width={DUCK_SIZE} height={DUCK_SIZE} aria-hidden>
-      <ellipse cx="26" cy="32" rx="18" ry="13" fill="#22c55e" />
-      <circle  cx="26" cy="16" r="9"           fill="#16a34a" />
-      <circle  cx={eyeX} cy="14" r="2" fill="#fff" />
-      <circle  cx={facing === 'right' ? eyeX + 1 : eyeX - 1} cy="14" r="1" fill="#111" />
-      <ellipse cx={billX} cy="17" rx="5" ry="3" fill="#f97316" />
-      <ellipse cx="26" cy={wingY} rx="10" ry="6" fill="#15803d" />
-      <line x1="20" y1="44" x2="16" y2="50" stroke="#f97316" strokeWidth="2" strokeLinecap="round" />
-      <line x1="26" y1="44" x2="24" y2="50" stroke="#f97316" strokeWidth="2" strokeLinecap="round" />
-      <line x1="32" y1="44" x2="34" y2="50" stroke="#f97316" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  )
-}
 
-/** Spinning clay pigeon disc */
-function ClaySvg({ angle }: { angle: number }) {
-  return (
-    <svg viewBox="0 0 52 52" width={DUCK_SIZE} height={DUCK_SIZE} aria-hidden
-      style={{ transform: `rotate(${angle}deg)` }}>
-      <ellipse cx="26" cy="26" rx="20" ry="9" fill="#f97316" />
-      <ellipse cx="26" cy="26" rx="16" ry="5" fill="#fb923c" />
-      <ellipse cx="26" cy="26" rx="7"  ry="3" fill="#fdba74" />
-    </svg>
-  )
-}
+
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -723,7 +695,7 @@ export default function DuckHuntGame() {
           <div className="dh-overlay">
             <div className="dh-overlay__box dh-overlay__box--gameover">
               <div className="dh-overlay__title dh-overlay__title--gameover">GAME OVER</div>
-              <div className="dh-gameover-dog">🐕</div>
+              <div className="dh-gameover-dog"><NesDog state="laugh" scale={4} /></div>
               <div className="dh-overlay__sub">
                 Score: {score}
                 {score >= hiScore && score > 0 ? ' 🏆 NEW HI-SCORE!' : ''}
@@ -743,7 +715,7 @@ export default function DuckHuntGame() {
           <div className="dh-overlay">
             <div className="dh-overlay__box dh-overlay__box--gameover">
               <div className="dh-overlay__title dh-overlay__title--gameover">ROUND FAILED</div>
-              <div className="dh-gameover-dog">🐕</div>
+              <div className="dh-gameover-dog"><NesDog state="laugh" scale={4} /></div>
               <div className="dh-overlay__sub">
                 Hit {birdsHit}/{BIRDS_PER_ROUND} — need {MIN_DUCKS_PASS} to pass
               </div>
@@ -766,7 +738,7 @@ export default function DuckHuntGame() {
           <div className={`dh-bird-result${!lastBirdHit ? ' dh-bird-result--miss' : ' dh-bird-result--hit'}`}>
             {!lastBirdHit ? (
               <>
-                <div className="dh-missed-dog">🐕</div>
+                <div className="dh-missed-dog"><NesDog state="laugh" scale={3} /></div>
                 <div className="dh-missed-text">HA HA HA!</div>
               </>
             ) : (
@@ -776,7 +748,7 @@ export default function DuckHuntGame() {
         )}
 
         {/* Dog rising from grass when duck escapes */}
-        {dogVisible && <div className="dh-dog-rising" aria-hidden>🐕</div>}
+        {dogVisible && <div className="dh-dog-rising" aria-hidden><NesDog state="sniff" scale={3} /></div>}
 
         {/* Animated ducks / clay pigeons */}
         {ducks.map(duck => {
@@ -794,8 +766,8 @@ export default function DuckHuntGame() {
               aria-hidden
             >
               {gameMode === 'C'
-                ? <ClaySvg angle={clayAngle} />
-                : <DuckSvg facing={facing} wingFrame={duck.wingFrame} />
+                ? <NesClay angle={clayAngle} />
+                : <NesDuck facing={facing} wingFrame={duck.wingFrame as 0 | 1 | 2} />
               }
             </div>
           )
