@@ -1,0 +1,210 @@
+/* ── Game Selection Screen ──────────────────────────────────────────────────── */
+
+.game-selection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 100%;
+  padding: 2rem 1rem;
+  background: radial-gradient(ellipse at 50% 0%, #0f3460 0%, #0d1b2e 65%);
+  box-sizing: border-box;
+  overflow: auto;
+}
+
+/* ── Title ─────────────────────────────────────────────────────────────────── */
+
+.game-selection__title {
+  font-size: clamp(1.6rem, 4vw, 2.8rem);
+  font-weight: 800;
+  color: #e2e8f0;
+  text-align: center;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.4rem;
+  text-shadow: 0 2px 16px rgba(75, 156, 211, 0.45);
+}
+
+.game-selection__subtitle {
+  font-size: clamp(0.8rem, 2vw, 1rem);
+  color: #64748b;
+  text-align: center;
+  margin-bottom: 2.5rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ── Card grid ─────────────────────────────────────────────────────────────── */
+
+.game-selection__grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  justify-content: center;
+  width: 100%;
+  max-width: 860px;
+}
+
+/* ── Individual card ────────────────────────────────────────────────────────── */
+
+.game-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 320px;
+  background: #1a2744;
+  border: 2px solid #1e3a5f;
+  border-radius: 16px;
+  padding: 0;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease;
+  overflow: hidden;
+  text-align: center;
+  position: relative;
+  outline: none;
+}
+
+.game-card:hover,
+.game-card:focus-visible {
+  transform: translateY(-6px) scale(1.02);
+  border-color: #4b9cd3;
+  box-shadow: 0 12px 36px rgba(75, 156, 211, 0.3);
+}
+
+.game-card:active {
+  transform: translateY(-2px) scale(1.005);
+}
+
+/* ── Card banner (coloured top section) ─────────────────────────────────────── */
+
+.game-card__banner {
+  width: 100%;
+  height: 160px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 5rem;
+  user-select: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.game-card__banner--chess {
+  background: linear-gradient(135deg, #16213e 0%, #0f3460 60%, #1a1a2e 100%);
+}
+
+.game-card__banner--duckhunt {
+  background: linear-gradient(135deg, #1a4a1a 0%, #2d7a2d 60%, #1a3d1a 100%);
+}
+
+/* Subtle decorative pattern behind the emoji */
+.game-card__banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle at 80% 20%, rgba(255,255,255,0.06) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+.game-card__emoji {
+  position: relative;
+  z-index: 1;
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
+  line-height: 1;
+}
+
+/* ── Card body ──────────────────────────────────────────────────────────────── */
+
+.game-card__body {
+  padding: 1.25rem 1.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  flex: 1;
+}
+
+.game-card__name {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  letter-spacing: 0.02em;
+}
+
+.game-card__description {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  line-height: 1.55;
+}
+
+/* ── Tags row ───────────────────────────────────────────────────────────────── */
+
+.game-card__tags {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 0.25rem;
+}
+
+.game-card__tag {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.2rem 0.55rem;
+  border-radius: 100px;
+  border: 1px solid #2d4a6a;
+  color: #64a4cc;
+  background: rgba(75, 156, 211, 0.08);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ── Play button ────────────────────────────────────────────────────────────── */
+
+.game-card__play-btn {
+  margin-top: 0.75rem;
+  padding: 0.5rem 1.6rem;
+  border-radius: 8px;
+  border: none;
+  background: #0f3460;
+  color: #e2e8f0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+  pointer-events: none; /* card itself is the click target */
+  width: 100%;
+}
+
+.game-card:hover .game-card__play-btn,
+.game-card:focus-visible .game-card__play-btn {
+  background: #4b9cd3;
+  box-shadow: 0 4px 14px rgba(75, 156, 211, 0.4);
+}
+
+/* ── Footer note ─────────────────────────────────────────────────────────────── */
+
+.game-selection__footer {
+  margin-top: 2.5rem;
+  font-size: 0.75rem;
+  color: #3d5268;
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────────── */
+
+@media (max-width: 680px) {
+  .game-card {
+    width: min(100%, 360px);
+  }
+
+  .game-card__banner {
+    height: 130px;
+    font-size: 4rem;
+  }
+}
