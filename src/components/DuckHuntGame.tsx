@@ -5,6 +5,7 @@
 //   • Hand-tracking support: index tip → crosshair, Closed_Fist (dwell) → shoot
 //   • HUD: Score, Hi-Score, Round, Shots Left (ammo icons), Ducks Hit, Pause
 //   • Round progression, game-over on out of shots, dog laugh on miss
+//   • Mode selection screen: Single Player or 2 Player (alternating rounds)
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import HandRecognitionPanel from './HandRecognitionPanel'
@@ -26,7 +27,8 @@ interface Duck {
   visible: boolean
 }
 
-type GamePhase = 'idle' | 'playing' | 'roundOver' | 'missed' | 'gameOver'
+type GamePhase = 'modeSelect' | 'idle' | 'playing' | 'roundOver' | 'missed' | 'gameOver'
+type PlayerMode = '1p' | '2p'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -67,11 +69,46 @@ function makeDuck(skyW: number, skyH: number, round: number): Duck {
   }
 }
 
+// ── Mode Selection Screen ─────────────────────────────────────────────────────
+
+function ModeSelectScreen({ onSelect }: { onSelect: (mode: PlayerMode) => void }) {
+  return (
+    <div className="dh-mode-select">
+      <div className="dh-mode-select__box">
+        <div className="dh-mode-select__duck">🦆</div>
+        <div className="dh-mode-select__title">DUCK HUNT</div>
+        <div className="dh-mode-select__subtitle">Select Game Mode</div>
+        <div className="dh-mode-select__buttons">
+          <button
+            className="dh-mode-select__btn dh-mode-select__btn--1p"
+            onClick={() => onSelect('1p')}
+          >
+            <span className="dh-mode-select__btn-icon">🎮</span>
+            <span className="dh-mode-select__btn-label">1 Player</span>
+            <span className="dh-mode-select__btn-desc">Classic Duck Hunt</span>
+          </button>
+          <button
+            className="dh-mode-select__btn dh-mode-select__btn--2p"
+            onClick={() => onSelect('2p')}
+          >
+            <span className="dh-mode-select__btn-icon">👥</span>
+            <span className="dh-mode-select__btn-label">2 Players</span>
+            <span className="dh-mode-select__btn-desc">Alternate rounds · Compete for hi-score</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function DuckHuntGame() {
+  // ── Mode selection ──────────────────────────────────────────────────────────
+  const [playerMode, setPlayerMode] = useState<PlayerMode>('1p')
+
   // ── Game state ─────────────────────────────────────────────────────────────
-  const [phase, setPhase]         = useState<GamePhase>('idle')
+  const [phase, setPhase]         = useState<GamePhase>('modeSelect')
   const [round, setRound]         = useState(1)
   const [score, setScore]         = useState(0)
   const [hiScore, setHiScore]     = useState(9900)
@@ -83,33 +120,55 @@ export default function DuckHuntGame() {
   const [crosshair, setCrosshair] = useState<{ x: number; y: number } | null>(null)
   const [handMode, setHandMode]   = useState(false)
 
+  // ── 2-Player state ──────────────────────────────────────────────────────────
+  const [currentPlayer, setCurrentPlayer] = useState<1 | 2>(1)
+  const [p1Score, setP1Score]             = useState(0)
+  const [p2Score, setP2Score]             = useState(0)
+  const [p1TotalHit, setP1TotalHit]       = useState(0)
+  const [p2TotalHit, setP2TotalHit]       = useState(0)
+  const [playerRound, setPlayerRound]     = useState(1)
+
   // ── Refs (for rAF loop without stale closures) ─────────────────────────────
-  const skyRef       = useRef<HTMLDivElement>(null)
-  const phaseRef     = useRef<GamePhase>('idle')
-  const pausedRef    = useRef(false)
-  const roundRef     = useRef(1)
-  const scoreRef     = useRef(0)
-  const hiScoreRef   = useRef(9900)
-  const shotsRef     = useRef(SHOTS_PER_ROUND)
-  const ducksHitRef  = useRef(0)
-  const totalHitRef  = useRef(0)
-  const ducksRef     = useRef<Duck[]>([])
-  const rafRef       = useRef<number | null>(null)
+  const skyRef           = useRef<HTMLDivElement>(null)
+  const phaseRef         = useRef<GamePhase>('modeSelect')
+  const pausedRef        = useRef(false)
+  const roundRef         = useRef(1)
+  const scoreRef         = useRef(0)
+  const hiScoreRef       = useRef(9900)
+  const shotsRef         = useRef(SHOTS_PER_ROUND)
+  const ducksHitRef      = useRef(0)
+  const totalHitRef      = useRef(0)
+  const ducksRef         = useRef<Duck[]>([])
+  const rafRef           = useRef<number | null>(null)
+  const playerModeRef    = useRef<PlayerMode>('1p')
+  const currentPlayerRef = useRef<1 | 2>(1)
+  const p1ScoreRef       = useRef(0)
+  const p2ScoreRef       = useRef(0)
+  const p1TotalHitRef    = useRef(0)
+  const p2TotalHitRef    = useRef(0)
+  const playerRoundRef   = useRef(1)
 
   // Hand tracking refs
   const fireDwellRef = useRef(0)
   const lastFireRef  = useRef(0)
 
   // keep refs in sync with state
-  useEffect(() => { phaseRef.current   = phase    }, [phase])
-  useEffect(() => { pausedRef.current  = paused   }, [paused])
-  useEffect(() => { roundRef.current   = round    }, [round])
-  useEffect(() => { scoreRef.current   = score    }, [score])
-  useEffect(() => { hiScoreRef.current = hiScore  }, [hiScore])
-  useEffect(() => { shotsRef.current   = shotsLeft}, [shotsLeft])
-  useEffect(() => { ducksHitRef.current = ducksHit}, [ducksHit])
-  useEffect(() => { totalHitRef.current = totalHit}, [totalHit])
-  useEffect(() => { ducksRef.current   = ducks    }, [ducks])
+  useEffect(() => { phaseRef.current         = phase          }, [phase])
+  useEffect(() => { pausedRef.current        = paused         }, [paused])
+  useEffect(() => { roundRef.current         = round          }, [round])
+  useEffect(() => { scoreRef.current         = score          }, [score])
+  useEffect(() => { hiScoreRef.current       = hiScore        }, [hiScore])
+  useEffect(() => { shotsRef.current         = shotsLeft      }, [shotsLeft])
+  useEffect(() => { ducksHitRef.current      = ducksHit       }, [ducksHit])
+  useEffect(() => { totalHitRef.current      = totalHit       }, [totalHit])
+  useEffect(() => { ducksRef.current         = ducks          }, [ducks])
+  useEffect(() => { playerModeRef.current    = playerMode     }, [playerMode])
+  useEffect(() => { currentPlayerRef.current = currentPlayer  }, [currentPlayer])
+  useEffect(() => { p1ScoreRef.current       = p1Score        }, [p1Score])
+  useEffect(() => { p2ScoreRef.current       = p2Score        }, [p2Score])
+  useEffect(() => { p1TotalHitRef.current    = p1TotalHit     }, [p1TotalHit])
+  useEffect(() => { p2TotalHitRef.current    = p2TotalHit     }, [p2TotalHit])
+  useEffect(() => { playerRoundRef.current   = playerRound    }, [playerRound])
 
   // ── Fire (shoot) logic ─────────────────────────────────────────────────────
 
@@ -119,7 +178,6 @@ export default function DuckHuntGame() {
     if (shotsRef.current <= 0) return
 
     const now = performance.now()
-    // Debounce: don't fire faster than once per 350ms
     if (now - lastFireRef.current < 350) return
     lastFireRef.current = now
 
@@ -127,15 +185,13 @@ export default function DuckHuntGame() {
     setShotsLeft(newShots)
     shotsRef.current = newShots
 
-    // Hit detection: check if any alive duck bbox contains the click
     const hitIdx = ducksRef.current.findIndex(d => {
       if (!d.alive || d.falling) return false
-      const r = DUCK_SIZE / 2 + 8  // generous hit radius
+      const r = DUCK_SIZE / 2 + 8
       return Math.abs(d.x - px) < r && Math.abs(d.y - py) < r
     })
 
     if (hitIdx >= 0) {
-      // Duck hit!
       setDucks(prev => prev.map((d, i) =>
         i === hitIdx ? { ...d, alive: false, falling: true, fallVy: -2 } : d
       ))
@@ -153,18 +209,31 @@ export default function DuckHuntGame() {
       setTotalHit(newTotal)
       totalHitRef.current = newTotal
 
+      // Update per-player totals in 2p mode
+      if (playerModeRef.current === '2p') {
+        if (currentPlayerRef.current === 1) {
+          setP1Score(newScore)
+          p1ScoreRef.current = newScore
+          setP1TotalHit(newTotal)
+          p1TotalHitRef.current = newTotal
+        } else {
+          setP2Score(newScore)
+          p2ScoreRef.current = newScore
+          setP2TotalHit(newTotal)
+          p2TotalHitRef.current = newTotal
+        }
+      }
+
       if (newScore > hiScoreRef.current) {
         setHiScore(newScore)
         hiScoreRef.current = newScore
       }
 
-      // Check if all ducks in round are gone
       const remainingAlive = ducksRef.current.filter((d, i) =>
         i !== hitIdx && d.alive && !d.falling
       ).length
 
       if (remainingAlive === 0) {
-        // All ducks down — round over after fall animation
         setTimeout(() => {
           if (phaseRef.current === 'playing') {
             setPhase('roundOver')
@@ -176,7 +245,6 @@ export default function DuckHuntGame() {
       return
     }
 
-    // Missed: no duck hit — check if out of shots
     if (newShots <= 0) {
       const anyAlive = ducksRef.current.some(d => d.alive && !d.falling)
       if (anyAlive) {
@@ -212,13 +280,11 @@ export default function DuckHuntGame() {
 
             if (!d.alive) return d
 
-            // Normal flight
             let nx  = d.x + d.vx
             let ny  = d.y + d.vy
             const nvx = d.vx
             let nvy = d.vy
 
-            // Bounce off top/bottom of sky
             if (ny < DUCK_SIZE / 2) {
               ny  = DUCK_SIZE / 2
               nvy = Math.abs(nvy)
@@ -233,12 +299,10 @@ export default function DuckHuntGame() {
             return { ...d, x: nx, y: ny, vx: nvx, vy: nvy, visible }
           })
 
-          // Check if all ducks have left (escaped or dead)
           const anyOnScreen = next.some(d => d.visible && (d.alive || d.falling))
           if (!anyOnScreen && phaseRef.current === 'playing') {
             const allDead = next.every(d => !d.alive)
             if (!allDead) {
-              // Some ducks escaped
               setTimeout(() => {
                 if (phaseRef.current === 'playing') {
                   setPhase('missed')
@@ -257,7 +321,6 @@ export default function DuckHuntGame() {
     rafRef.current = requestAnimationFrame(tick)
   }, [])
 
-  // Start/stop rAF
   useEffect(() => {
     rafRef.current = requestAnimationFrame(tick)
     return () => {
@@ -271,7 +334,6 @@ export default function DuckHuntGame() {
     const newDucks: Duck[] = Array.from({ length: DUCKS_PER_ROUND }, () =>
       makeDuck(skyW, skyH, r)
     )
-    // Stagger start positions so ducks don't all spawn simultaneously
     newDucks.forEach((d, i) => {
       d.x += d.vx * i * 40
     })
@@ -295,28 +357,97 @@ export default function DuckHuntGame() {
     spawnDucks(W, H, r)
   }, [spawnDucks])
 
-  const startGame = useCallback(() => {
+  const startGame = useCallback((mode: PlayerMode) => {
+    setPlayerMode(mode)
+    playerModeRef.current = mode
+
     setRound(1)
     roundRef.current = 1
     setScore(0)
     scoreRef.current = 0
     setTotalHit(0)
     totalHitRef.current = 0
+
+    if (mode === '2p') {
+      setCurrentPlayer(1)
+      currentPlayerRef.current = 1
+      setP1Score(0)
+      p1ScoreRef.current = 0
+      setP2Score(0)
+      p2ScoreRef.current = 0
+      setP1TotalHit(0)
+      p1TotalHitRef.current = 0
+      setP2TotalHit(0)
+      p2TotalHitRef.current = 0
+      setPlayerRound(1)
+      playerRoundRef.current = 1
+    }
+
     startRound(1)
   }, [startRound])
 
-  const nextRound = useCallback(() => {
-    const r = roundRef.current + 1
-    setRound(r)
-    roundRef.current = r
-    startRound(r)
+  // In 2p mode: end current player's turn, swap players / advance round
+  const endPlayerTurn = useCallback(() => {
+    if (playerModeRef.current !== '2p') return
+
+    if (currentPlayerRef.current === 1) {
+      // Switch to player 2, same game round
+      setCurrentPlayer(2)
+      currentPlayerRef.current = 2
+
+      // Restore player 2's accumulated score for their turn
+      setScore(p2ScoreRef.current)
+      scoreRef.current = p2ScoreRef.current
+      setTotalHit(p2TotalHitRef.current)
+      totalHitRef.current = p2TotalHitRef.current
+
+      startRound(playerRoundRef.current)
+    } else {
+      // Both players done this round → advance to next round, switch to P1
+      const nextR = playerRoundRef.current + 1
+      setPlayerRound(nextR)
+      playerRoundRef.current = nextR
+      setRound(nextR)
+      roundRef.current = nextR
+
+      setCurrentPlayer(1)
+      currentPlayerRef.current = 1
+
+      setScore(p1ScoreRef.current)
+      scoreRef.current = p1ScoreRef.current
+      setTotalHit(p1TotalHitRef.current)
+      totalHitRef.current = p1TotalHitRef.current
+
+      startRound(nextR)
+    }
   }, [startRound])
 
-  // Advance from 'missed' phase
+  const nextRound = useCallback(() => {
+    if (playerModeRef.current === '2p') {
+      endPlayerTurn()
+    } else {
+      const r = roundRef.current + 1
+      setRound(r)
+      roundRef.current = r
+      startRound(r)
+    }
+  }, [startRound, endPlayerTurn])
+
   const continuePlaying = useCallback(() => {
     if (shotsRef.current <= 0) {
-      setPhase('gameOver')
-      phaseRef.current = 'gameOver'
+      if (playerModeRef.current === '2p') {
+        if (currentPlayerRef.current === 1) {
+          // P1 ran out of shots mid-round — hand over to P2
+          endPlayerTurn()
+        } else {
+          // P2 also ran out — game over
+          setPhase('gameOver')
+          phaseRef.current = 'gameOver'
+        }
+      } else {
+        setPhase('gameOver')
+        phaseRef.current = 'gameOver'
+      }
     } else {
       const sky = skyRef.current
       const W = sky ? sky.clientWidth  : 800
@@ -325,9 +456,8 @@ export default function DuckHuntGame() {
       setPhase('playing')
       phaseRef.current = 'playing'
     }
-  }, [spawnDucks])
+  }, [spawnDucks, endPlayerTurn])
 
-  // Auto-advance from roundOver / missed phases
   useEffect(() => {
     if (phase === 'roundOver') {
       const t = setTimeout(nextRound, ROUND_OVER_MS)
@@ -390,7 +520,6 @@ export default function DuckHuntGame() {
     const hand = data.hands[0]
     const { indexTip, gesture } = hand
 
-    // Mirror x (selfie camera flip)
     const mirroredX = 1 - indexTip.x
 
     const rect = sky.getBoundingClientRect()
@@ -399,7 +528,6 @@ export default function DuckHuntGame() {
 
     setCrosshair({ x: px, y: py })
 
-    // Dwell-based fire: Closed_Fist gesture
     if (gesture === GESTURE_FIST) {
       fireDwellRef.current += 1
     } else if (gesture === GESTURE_NONE) {
@@ -428,18 +556,44 @@ export default function DuckHuntGame() {
       }
       if (e.key === ' ' || e.key === 'Enter') {
         if (phaseRef.current === 'idle' || phaseRef.current === 'gameOver') {
-          startGame()
+          setPhase('modeSelect')
+          phaseRef.current = 'modeSelect'
         }
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  // ── 2P winner calculation ──────────────────────────────────────────────────
+
+  const getWinner = () => {
+    if (p1Score > p2Score) return 1
+    if (p2Score > p1Score) return 2
+    return 0 // tie
+  }
+
+  const handleModeSelect = useCallback((mode: PlayerMode) => {
+    startGame(mode)
   }, [startGame])
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  const is2P = playerMode === '2p'
+
+  const displayTotal = is2P
+    ? (currentPlayer === 1 ? p1TotalHit : p2TotalHit)
+    : totalHit
+
   return (
     <div className="dh-container">
+
+      {/* ── Mode Select Screen ─────────────────────────────────────── */}
+      {phase === 'modeSelect' && (
+        <div className="dh-mode-select-overlay">
+          <ModeSelectScreen onSelect={handleModeSelect} />
+        </div>
+      )}
 
       {/* ── Control bar ──────────────────────────────────────────────── */}
       <div className="dh-control-bar">
@@ -457,8 +611,14 @@ export default function DuckHuntGame() {
           ✋ Hand Tracking
         </button>
 
-        {(phase === 'idle' || phase === 'gameOver') && (
-          <button className="dh-start-btn" onClick={startGame}>
+        {(phase === 'idle' || phase === 'gameOver' || phase === 'modeSelect') && (
+          <button
+            className="dh-start-btn"
+            onClick={() => {
+              setPhase('modeSelect')
+              phaseRef.current = 'modeSelect'
+            }}
+          >
             {phase === 'gameOver' ? '🔄 Play Again' : '🎮 Start Game'}
           </button>
         )}
@@ -475,10 +635,17 @@ export default function DuckHuntGame() {
             {paused ? '▶ Resume' : '⏸ Pause'}
           </button>
         )}
+
+        {/* 2P player indicator */}
+        {is2P && phase !== 'modeSelect' && phase !== 'idle' && (
+          <div className={`dh-player-badge dh-player-badge--p${currentPlayer}`}>
+            Player {currentPlayer}'s Turn
+          </div>
+        )}
       </div>
 
-      {/* ── Hand panel (shown when hand mode active) ──────────────── */}
-      {handMode && (
+      {/* ── Hand panel ──────────────────────────────────────────────── */}
+      {handMode && phase !== 'modeSelect' && (
         <div className="dh-hand-panel">
           <HandRecognitionPanel onHandData={handleHandData} />
           <div className="dh-hand-hint">
@@ -491,7 +658,7 @@ export default function DuckHuntGame() {
       {/* ── Sky / Game Canvas ─────────────────────────────────────── */}
       <div
         ref={skyRef}
-        className={`dh-sky${paused ? ' dh-sky--paused' : ''}`}
+        className={`dh-sky${paused ? ' dh-sky--paused' : ''}${is2P && currentPlayer === 2 ? ' dh-sky--p2' : ''}`}
         onMouseMove={handleSkyMouseMove}
         onMouseLeave={handleSkyMouseLeave}
         onClick={handleSkyClick}
@@ -501,6 +668,13 @@ export default function DuckHuntGame() {
         <div className="dh-cloud dh-cloud--1" />
         <div className="dh-cloud dh-cloud--2" />
         <div className="dh-cloud dh-cloud--3" />
+
+        {/* 2P: corner turn indicator */}
+        {is2P && phase === 'playing' && !paused && (
+          <div className={`dh-turn-badge dh-turn-badge--p${currentPlayer}`}>
+            P{currentPlayer}
+          </div>
+        )}
 
         {/* Pause overlay */}
         {paused && phase === 'playing' && (
@@ -527,8 +701,8 @@ export default function DuckHuntGame() {
           </div>
         )}
 
-        {/* Game Over */}
-        {phase === 'gameOver' && (
+        {/* Game Over — 1P */}
+        {phase === 'gameOver' && !is2P && (
           <div className="dh-overlay">
             <div className="dh-overlay__box dh-overlay__box--gameover">
               <div className="dh-overlay__title dh-overlay__title--gameover">GAME OVER</div>
@@ -538,22 +712,76 @@ export default function DuckHuntGame() {
                 {score >= hiScore && score > 0 ? ' 🏆 NEW HI-SCORE!' : ''}
               </div>
               <div className="dh-overlay__sub">Total ducks: {totalHit}</div>
-              <button className="dh-btn dh-btn--play-again" onClick={startGame}>
+              <button
+                className="dh-btn dh-btn--play-again"
+                onClick={() => {
+                  setPhase('modeSelect')
+                  phaseRef.current = 'modeSelect'
+                }}
+              >
                 Play Again
               </button>
             </div>
           </div>
         )}
 
+        {/* Game Over — 2P */}
+        {phase === 'gameOver' && is2P && (() => {
+          const winner = getWinner()
+          return (
+            <div className="dh-overlay">
+              <div className="dh-overlay__box dh-overlay__box--gameover dh-overlay__box--2p-over">
+                <div className="dh-overlay__title dh-overlay__title--gameover">
+                  {winner === 0 ? '🤝 TIE GAME!' : `🏆 P${winner} WINS!`}
+                </div>
+                <div className="dh-gameover-dog">🐕</div>
+                <div className="dh-2p-scores">
+                  <div className={`dh-2p-score-card${winner === 1 ? ' dh-2p-score-card--winner' : ''}`}>
+                    <span className="dh-2p-score-card__label">Player 1</span>
+                    <span className="dh-2p-score-card__score">{p1Score.toString().padStart(5, '0')}</span>
+                    <span className="dh-2p-score-card__ducks">🦆 {p1TotalHit}</span>
+                    {winner === 1 && <span className="dh-2p-score-card__crown">👑</span>}
+                  </div>
+                  <div className="dh-2p-vs">VS</div>
+                  <div className={`dh-2p-score-card${winner === 2 ? ' dh-2p-score-card--winner' : ''}`}>
+                    <span className="dh-2p-score-card__label">Player 2</span>
+                    <span className="dh-2p-score-card__score">{p2Score.toString().padStart(5, '0')}</span>
+                    <span className="dh-2p-score-card__ducks">🦆 {p2TotalHit}</span>
+                    {winner === 2 && <span className="dh-2p-score-card__crown">👑</span>}
+                  </div>
+                </div>
+                <button
+                  className="dh-btn dh-btn--play-again"
+                  onClick={() => {
+                    setPhase('modeSelect')
+                    phaseRef.current = 'modeSelect'
+                  }}
+                >
+                  Play Again
+                </button>
+              </div>
+            </div>
+          )
+        })()}
+
         {/* Round clear */}
         {phase === 'roundOver' && (
           <div className="dh-round-clear">
             <div className="dh-round-clear__emoji">🎉</div>
-            <div className="dh-round-clear__text">Round {round} Clear!</div>
+            <div className="dh-round-clear__text">
+              {is2P
+                ? `Round ${playerRound} – P${currentPlayer} Clear!`
+                : `Round ${round} Clear!`}
+            </div>
+            {is2P && (
+              <div className="dh-round-clear__next">
+                Next: {currentPlayer === 1 ? 'Player 2' : `Round ${playerRound + 1} – Player 1`}
+              </div>
+            )}
           </div>
         )}
 
-        {/* Missed overlay (dog laughing) */}
+        {/* Missed overlay */}
         {phase === 'missed' && (
           <div className="dh-missed-overlay">
             <div className="dh-missed-dog">🐕</div>
@@ -576,7 +804,6 @@ export default function DuckHuntGame() {
               aria-hidden
             >
               {duck.alive || duck.falling ? (
-                /* Living / falling duck */
                 <svg viewBox="0 0 52 52" width={DUCK_SIZE} height={DUCK_SIZE} aria-hidden>
                   <ellipse cx="26" cy="32" rx="18" ry="13" fill="#22c55e" />
                   <circle  cx="26" cy="16" r="9"           fill="#16a34a" />
@@ -611,7 +838,7 @@ export default function DuckHuntGame() {
           </div>
         )}
 
-        {/* "No shots left" notice */}
+        {/* No shots left notice */}
         {shotsLeft <= 0 && phase === 'playing' && (
           <div className="dh-shot-counter" aria-live="polite">
             No shots left!
@@ -629,19 +856,36 @@ export default function DuckHuntGame() {
 
       {/* ── HUD bar ──────────────────────────────────────────────────── */}
       <div className="dh-hud">
-        <div className="dh-hud-cell">
-          <span className="dh-hud-cell__label">SCORE</span>
-          <span className="dh-hud-cell__value">{score.toString().padStart(5, '0')}</span>
-        </div>
+        {/* 2P: show both player scores side by side */}
+        {is2P ? (
+          <>
+            <div className={`dh-hud-cell dh-hud-cell--player${currentPlayer === 1 ? ' dh-hud-cell--active-player' : ''} dh-hud-cell--p1`}>
+              <span className="dh-hud-cell__label">P1 SCORE</span>
+              <span className="dh-hud-cell__value">{p1Score.toString().padStart(5, '0')}</span>
+            </div>
 
-        <div className="dh-hud-cell">
-          <span className="dh-hud-cell__label">HI-SCORE</span>
-          <span className="dh-hud-cell__value">{hiScore.toString().padStart(5, '0')}</span>
-        </div>
+            <div className={`dh-hud-cell dh-hud-cell--player${currentPlayer === 2 ? ' dh-hud-cell--active-player' : ''} dh-hud-cell--p2`}>
+              <span className="dh-hud-cell__label">P2 SCORE</span>
+              <span className="dh-hud-cell__value">{p2Score.toString().padStart(5, '0')}</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="dh-hud-cell">
+              <span className="dh-hud-cell__label">SCORE</span>
+              <span className="dh-hud-cell__value">{score.toString().padStart(5, '0')}</span>
+            </div>
+
+            <div className="dh-hud-cell">
+              <span className="dh-hud-cell__label">HI-SCORE</span>
+              <span className="dh-hud-cell__value">{hiScore.toString().padStart(5, '0')}</span>
+            </div>
+          </>
+        )}
 
         <div className="dh-hud-cell">
           <span className="dh-hud-cell__label">ROUND</span>
-          <span className="dh-hud-cell__value">{round}</span>
+          <span className="dh-hud-cell__value">{is2P ? playerRound : round}</span>
         </div>
 
         <div className="dh-hud-cell">
@@ -664,7 +908,7 @@ export default function DuckHuntGame() {
 
         <div className="dh-hud-cell">
           <span className="dh-hud-cell__label">TOTAL</span>
-          <span className="dh-hud-cell__value">{totalHit}</span>
+          <span className="dh-hud-cell__value">{displayTotal}</span>
         </div>
       </div>
     </div>

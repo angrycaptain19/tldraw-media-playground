@@ -1,6 +1,7 @@
 /* ─── DuckHuntGame Layout ──────────────────────────────────────────────────── */
 
 .dh-container {
+  position: relative;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -613,4 +614,302 @@
     padding: 1rem 1.5rem;
     min-width: 200px;
   }
+}
+
+/* ── Mode Selection Screen ──────────────────────────────────────────────────── */
+
+.dh-mode-select-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+}
+
+.dh-mode-select {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.dh-mode-select__box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  padding: 2rem 2.5rem;
+  background: rgba(13, 17, 23, 0.92);
+  border: 3px solid #22c55e;
+  border-radius: 18px;
+  text-align: center;
+  min-width: 300px;
+  max-width: 420px;
+  width: 90%;
+}
+
+.dh-mode-select__duck {
+  font-size: 4rem;
+  line-height: 1;
+  animation: dh-bob 1.2s ease-in-out infinite;
+}
+
+.dh-mode-select__title {
+  font-size: 2.4rem;
+  font-weight: 900;
+  color: #facc15;
+  letter-spacing: 0.15em;
+  text-shadow: 0 0 24px #f59e0b88;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.dh-mode-select__subtitle {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #9ca3af;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.dh-mode-select__buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.dh-mode-select__btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  width: 100%;
+  padding: 0.9rem 1.5rem;
+  border-radius: 10px;
+  border: 2.5px solid #374151;
+  background: #111827;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.dh-mode-select__btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+}
+
+.dh-mode-select__btn--1p {
+  border-color: #3b82f6;
+}
+
+.dh-mode-select__btn--1p:hover {
+  background: #1e3a5f;
+  border-color: #60a5fa;
+}
+
+.dh-mode-select__btn--2p {
+  border-color: #a855f7;
+}
+
+.dh-mode-select__btn--2p:hover {
+  background: #3b1f5e;
+  border-color: #c084fc;
+}
+
+.dh-mode-select__btn-icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.dh-mode-select__btn-label {
+  font-size: 1.15rem;
+  font-weight: 900;
+  color: #f3f4f6;
+  letter-spacing: 0.06em;
+}
+
+.dh-mode-select__btn-desc {
+  font-size: 0.68rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+/* ── 2P Sky tint (subtle purple hue for Player 2) ───────────────────────────── */
+
+.dh-sky--p2 {
+  background: linear-gradient(to bottom, #312e81 0%, #6d28d9 30%, #8b5cf6 65%, #c4b5fd 85%, #d1fae5 100%);
+}
+
+/* ── 2P turn badge (corner indicator) ──────────────────────────────────────── */
+
+.dh-turn-badge {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font-size: 0.65rem;
+  font-weight: 900;
+  font-family: 'Courier New', Courier, monospace;
+  letter-spacing: 0.08em;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  z-index: 20;
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+.dh-turn-badge--p1 {
+  background: #1d4ed8;
+  color: #bfdbfe;
+  border: 1.5px solid #3b82f6;
+}
+
+.dh-turn-badge--p2 {
+  background: #7c3aed;
+  color: #ede9fe;
+  border: 1.5px solid #a855f7;
+}
+
+/* ── Player badge in control bar ────────────────────────────────────────────── */
+
+.dh-player-badge {
+  margin-left: auto;
+  padding: 0.22rem 0.7rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  font-family: 'Courier New', Courier, monospace;
+  letter-spacing: 0.05em;
+  animation: dh-pop 0.25s ease-out;
+}
+
+.dh-player-badge--p1 {
+  background: #1d4ed8;
+  color: #bfdbfe;
+  border: 1.5px solid #3b82f6;
+}
+
+.dh-player-badge--p2 {
+  background: #7c3aed;
+  color: #ede9fe;
+  border: 1.5px solid #a855f7;
+}
+
+/* ── 2P HUD player cells ─────────────────────────────────────────────────────── */
+
+.dh-hud-cell--p1 {
+  border-color: #3b82f6;
+}
+
+.dh-hud-cell--p2 {
+  border-color: #a855f7;
+}
+
+.dh-hud-cell--p1 .dh-hud-cell__value {
+  color: #93c5fd;
+}
+
+.dh-hud-cell--p2 .dh-hud-cell__value {
+  color: #c084fc;
+}
+
+.dh-hud-cell--active-player {
+  background: #111827;
+  box-shadow: 0 0 10px rgba(250, 204, 21, 0.35);
+  border-width: 2px;
+}
+
+.dh-hud-cell--p1.dh-hud-cell--active-player {
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.5);
+}
+
+.dh-hud-cell--p2.dh-hud-cell--active-player {
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.5);
+}
+
+/* ── 2P Game Over scores ─────────────────────────────────────────────────────── */
+
+.dh-overlay__box--2p-over {
+  min-width: 340px;
+  gap: 0.75rem;
+}
+
+.dh-2p-scores {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0.5rem 0;
+}
+
+.dh-2p-score-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  border: 2px solid #374151;
+  background: #111827;
+  min-width: 110px;
+  position: relative;
+}
+
+.dh-2p-score-card--winner {
+  border-color: #facc15;
+  background: #1a1500;
+  box-shadow: 0 0 18px rgba(250, 204, 21, 0.3);
+}
+
+.dh-2p-score-card__label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.dh-2p-score-card__score {
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: #facc15;
+  letter-spacing: 0.06em;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.dh-2p-score-card__ducks {
+  font-size: 0.7rem;
+  color: #d1d5db;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.dh-2p-score-card__crown {
+  font-size: 1.2rem;
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 0 6px #f59e0b);
+}
+
+.dh-2p-vs {
+  font-size: 0.9rem;
+  font-weight: 900;
+  color: #6b7280;
+  letter-spacing: 0.08em;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+/* ── Round clear — next turn hint ───────────────────────────────────────────── */
+
+.dh-round-clear__next {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #6b7280;
+  font-family: 'Courier New', Courier, monospace;
+  margin-top: 0.1rem;
 }
