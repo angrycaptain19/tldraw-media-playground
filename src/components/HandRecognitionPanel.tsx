@@ -1,16 +1,20 @@
 // ─── HandRecognitionPanel ─────────────────────────────────────────────────────
 // A self-contained panel that:
 //   * shows the live camera feed with landmark overlays
-//   * surfaces detected-hand data (handedness, pinch strength, index-tip pos)
-//   * exposes an `onHandData` prop so the chess game can later respond to
-//     gestures without this panel knowing anything about chess
+//   * surfaces detected-hand data (handedness, gesture name, index-tip pos)
+//   * exposes an `onHandData` prop so the chess game can respond to gestures
 //
-// This is intentionally a *display + hook-wiring* layer only - no chess logic
-// lives here.  That separation makes it straightforward to add gesture-to-move
-// translation in ChessGame.tsx in a follow-up task.
+// This is intentionally a *display + hook-wiring* layer only — no chess logic
+// lives here.
 
 import { useState } from 'react'
-import { useHandRecognition, type HandData } from '../hooks/useHandRecognition'
+import {
+  useHandRecognition,
+  type HandData,
+  GESTURE_FIST,
+  GESTURE_OPEN_PALM,
+  GESTURE_POINTING_UP,
+} from '../hooks/useHandRecognition'
 import './HandRecognitionPanel.css'
 
 interface HandRecognitionPanelProps {
@@ -95,7 +99,7 @@ export default function HandRecognitionPanel({ onHandData }: HandRecognitionPane
             )}
             {isLoading && (
               <div className="hrp__placeholder hrp__placeholder--loading">
-                <span>Loading MediaPipe model...</span>
+                <span>Loading GestureRecognizer model...</span>
                 <small>Downloading WASM runtime (~10 MB, first time only)</small>
               </div>
             )}
@@ -108,8 +112,15 @@ export default function HandRecognitionPanel({ onHandData }: HandRecognitionPane
                 <div key={i} className="hrp__hand-card">
                   <div className="hrp__hand-title">
                     {hand.handedness} hand
-                    {hand.indexExtended && <span className="hrp__badge hrp__badge--pointing">pointing</span>}
-                    {hand.pinchStrength > 0.7 && <span className="hrp__badge hrp__badge--pinch">pinch</span>}
+                    {hand.gesture === GESTURE_POINTING_UP && (
+                      <span className="hrp__badge hrp__badge--pointing">cursor</span>
+                    )}
+                    {hand.gesture === GESTURE_FIST && (
+                      <span className="hrp__badge hrp__badge--fist">grab</span>
+                    )}
+                    {hand.gesture === GESTURE_OPEN_PALM && (
+                      <span className="hrp__badge hrp__badge--palm">release</span>
+                    )}
                   </div>
 
                   <div className="hrp__hand-row">
@@ -120,33 +131,34 @@ export default function HandRecognitionPanel({ onHandData }: HandRecognitionPane
                   </div>
 
                   <div className="hrp__hand-row">
-                    <span className="hrp__label">Pinch</span>
+                    <span className="hrp__label">Gesture</span>
                     <span className="hrp__value">
-                      <span
-                        className="hrp__pinch-bar"
-                        style={{ width: `${Math.round(hand.pinchStrength * 100)}%` }}
-                      />
-                      {Math.round(hand.pinchStrength * 100)}%
+                      <span className={`hrp__gesture-badge hrp__gesture-badge--${hand.gesture.toLowerCase().replace(/_/g, '-')}`}>
+                        {hand.gesture}
+                      </span>
+                      <span className="hrp__gesture-score">
+                        {' '}{Math.round(hand.gestureScore * 100)}%
+                      </span>
                     </span>
                   </div>
                 </div>
               ))}
             </div>
           ) : isRunning ? (
-            <div className="hrp__no-hands">No hands detected - show your hand to the camera</div>
+            <div className="hrp__no-hands">No hands detected — show your hand to the camera</div>
           ) : null}
 
           {/* Usage hint */}
           <div className="hrp__hint">
             <strong>Point</strong> your index finger at a square to hover it.
             <br />
-            <strong>Pinch</strong> (index + thumb together) to pick up the piece.
+            <strong>Close your fist</strong> over a piece to pick it up (hold ~0.2 s).
             <br />
-            <strong>Move</strong> your hand to drag it across the board.
+            <strong>Move</strong> your hand to drag the piece across the board.
             <br />
-            <strong>Release</strong> the pinch to drop on a valid square.
+            <strong>Open your palm</strong> to drop it on a valid square (hold ~0.2 s).
             <br />
-            <em>Green highlight = valid drop target</em>
+            <em>Pink = grab &nbsp;·&nbsp; Green = release &nbsp;·&nbsp; Cyan = cursor</em>
           </div>
         </div>
       )}
