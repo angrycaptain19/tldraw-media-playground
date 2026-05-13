@@ -1125,6 +1125,17 @@ export default function DuckHuntGame() {
         </span>
       </div>
 
+      {/* ── Hand panel – outside sky so it never blocks gameplay ──── */}
+      {handMode && (
+        <div className="dh-hand-overlay">
+          <HandRecognitionPanel onHandData={handleHandData} autoStart defaultCollapsed={false} />
+          <div className="dh-hand-hint">
+            <strong>Point</strong> index finger to aim ·{' '}
+            <strong>Close fist</strong> to shoot (~0.3 s dwell)
+          </div>
+        </div>
+      )}
+
       {/* ── Sky / Game Canvas ─────────────────────────────────────── */}
       <div
         ref={skyRef}
@@ -1134,20 +1145,6 @@ export default function DuckHuntGame() {
         onClick={handleSkyClick}
         onTouchStart={handleSkyTouchStart}
       >
-        {/* ── Hand panel overlay ──────────────────────────────────── */}
-        {handMode && (
-          <div className="dh-hand-overlay"
-            onMouseMove={e => e.stopPropagation()}
-            onClick={e => e.stopPropagation()}
-          >
-            <HandRecognitionPanel onHandData={handleHandData} autoStart defaultCollapsed={false} />
-            <div className="dh-hand-hint">
-              <strong>Point</strong> index finger to aim ·{' '}
-              <strong>Close fist</strong> to shoot (~0.3 s dwell)
-            </div>
-          </div>
-        )}
-
         {/* NES pixel-art clouds at classic Duck Hunt positions */}
         <NesCloud x="8%"  y="10%" scale={1.1} />
         <NesCloud x="46%" y="18%" scale={0.9} />
