@@ -68,7 +68,7 @@ const POINTS_PER_DUCK  = 1000         // base score (+ round bonus)
 const BIRD_RESULT_MS   = 2000         // ms — dog laugh or hit flash
 const ROUND_OVER_MS    = 2200         // ms — round-clear banner
 const ROUND_FAIL_MS    = 2500         // ms — fail banner → game over
-const DIR_CHANGE_TICKS = 90           // frames between direction flips
+const DIR_CHANGE_TICKS = 150          // frames between direction flips — longer pass = more screen coverage
 const WING_ANIM_TICKS  = 8            // frames per wing-flap frame
 const MIN_DUCKS_PASS   = 6            // ducks you must hit to pass a round
 
@@ -86,11 +86,11 @@ let duckIdCounter = 0
 function makeDuck(skyW: number, skyH: number, round: number): Duck {
   const speed    = DUCK_SPEED_BASE + (round - 1) * DUCK_SPEED_INC
   const fromLeft = Math.random() < 0.5
-  const x        = fromLeft
-    ? skyW * (0.1 + Math.random() * 0.3)
-    : skyW * (0.6 + Math.random() * 0.3)
-  const y   = skyH + DUCK_SIZE           // start just below visible area
-  const vx  = (fromLeft ? 1 : -1) * speed * (0.6 + Math.random() * 0.4)
+  // Spawn anywhere across the full width (5–95%) so birds traverse the whole screen
+  const x        = skyW * (0.05 + Math.random() * 0.90)
+  const y        = skyH + DUCK_SIZE           // start just below visible area
+  // Wider horizontal speed so a single pass covers 60–100% of screen width
+  const vx  = (fromLeft ? 1 : -1) * speed * (1.0 + Math.random() * 0.6)
   const vy  = -(speed * (0.8 + Math.random() * 0.4))  // upward
 
   return {
@@ -877,6 +877,15 @@ export default function DuckHuntGame() {
             if (ny > H * 0.75) {
               ny = H * 0.75
               vy = -Math.abs(vy)
+            }
+
+            // Bounce off left and right walls so ducks traverse the full screen width
+            if (nx < 0) {
+              nx = 0
+              vx = Math.abs(vx)
+            } else if (nx > W - DUCK_SIZE) {
+              nx = W - DUCK_SIZE
+              vx = -Math.abs(vx)
             }
 
             const visible = nx > -DUCK_SIZE * 4 && nx < W + DUCK_SIZE * 4 && ny > -DUCK_SIZE * 4
