@@ -212,3 +212,7 @@
 .game-card__banner--platformer {
   background: linear-gradient(135deg, #3b1f5e 0%, #7c3aed 55%, #4c1d95 100%);
 }
+
+.game-card__banner--fps {
+  background: linear-gradient(135deg, #0d1117 0%, #1e293b 40%, #7f1d1d 100%);
+}
