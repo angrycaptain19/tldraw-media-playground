@@ -140,6 +140,11 @@
   color: #f1f5f9;
 }
 
+.fps-hud__enemies {
+  font-size: 0.78rem;
+  color: #a78bfa;
+}
+
 .fps-hud__controls {
   font-size: 0.7rem;
   color: #64748b;

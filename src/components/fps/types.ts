@@ -68,6 +68,8 @@ export interface FpsGameState {
   players: [FpsPlayer, FpsPlayer]
   /** All live bullets */
   bullets: FpsBullet[]
+  /** All enemies in the current map */
+  enemies: FpsEnemy[]
   /** The active tile map */
   map: FpsMap
   /** Single-player or local split-screen */
