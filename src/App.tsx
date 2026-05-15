@@ -5,7 +5,7 @@ import type { GameId } from './components/GameSelectionScreen'
 import ChessGame from './components/ChessGame'
 import DuckHuntGame from './components/DuckHuntGame'
 import PlatformerGame from './components/PlatformerGame'
-import FpsSplitScreen from './components/fps/FpsSplitScreen'
+import FpsGame from './components/FpsGame'
 import HandRecognitionPanel from './components/HandRecognitionPanel'
 import AudioControlPanel from './components/AudioControlPanel'
 import type { HandData } from './hooks/useHandRecognition'
@@ -150,7 +150,7 @@ export default function App() {
             )}
 
             {activeGame === 'fps' && (
-              <FpsSplitScreen />
+              <FpsGame onExit={handleBackToMenu} />
             )}
           </div>
         </>
