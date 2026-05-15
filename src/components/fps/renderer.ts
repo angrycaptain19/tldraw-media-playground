@@ -16,8 +16,8 @@ export interface RenderFrameOptions {
   height: number
   /** Current game state snapshot */
   state: FpsGameState
-  /** Id of the local player (used for first-person camera) */
-  localPlayerId: string
+  /** Which player's perspective to render from */
+  playerIndex: 0 | 1
   /** Horizontal field-of-view in degrees */
   fovDeg?: number
 }
