@@ -14,7 +14,14 @@
 // the keyboard for either player.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { FpsExternalInput, FpsGameState, FpsBullet } from './types'
+import type { FpsExternalInput, FpsGameState, FpsBullet, FpsEnemy } from './types'
+import {
+  updateEnemies,
+  type EnemyState,
+  type EnemyBullet,
+  ENEMY_BULLET_SPEED,
+  ENEMY_BULLET_DAMAGE,
+} from './enemies'
 
 // ── Tunable constants ──────────────────────────────────────────────────────────
 
@@ -144,6 +151,9 @@ export function useGameLoop(
   const p2FireConsumed = useRef(false)
 
   const rafRef = useRef<number | null>(null)
+
+  /** Enemy bullets are tracked in a ref to avoid extending FpsGameState */
+  const enemyBulletsRef = useRef<EnemyBullet[]>([])
 
   /** Keep a stable ref to the caller-supplied external inputs. */
   const externalInputsRef = useRef(externalInputs)
@@ -297,7 +307,7 @@ export function useGameLoop(
       }
     }
 
-    // ── 2. Bullet physics ───────────────────────────────────────────────────
+    // ── 2. Player-bullet physics (player vs player) ─────────────────────────
     const allBullets = [...s.bullets, ...bulletsInFlight]
     bulletsInFlight.length = 0
 
@@ -323,12 +333,55 @@ export function useGameLoop(
       bulletsInFlight.push({ ...bullet, x: bx, y: by })
     }
 
-    // ── 3. Publish new state ────────────────────────────────────────────────
+    // ── 3. Enemy AI update ──────────────────────────────────────────────────
+    // Cast enemies to EnemyState so the AI module can read _extra
+    const enemies = s.enemies as EnemyState[]
+    const { enemies: updatedEnemies, newBullets: enemyBullets } = updateEnemies(
+      enemies,
+      players,
+      map,
+      bulletsInFlight, // pass the current player bullets for hit detection
+      s.tick,
+    )
+
+    // ── 4. Enemy-bullet physics ─────────────────────────────────────────────
+    // Move enemy bullets and check if they hit players
+    const liveEnemyBullets: EnemyBullet[] = []
+
+    for (const eb of [...enemyBulletsRef.current, ...enemyBullets]) {
+      const bx = eb.x + Math.cos(eb.angle) * ENEMY_BULLET_SPEED
+      const by = eb.y + Math.sin(eb.angle) * ENEMY_BULLET_SPEED
+
+      if (isWall(map, bx, by)) continue
+
+      let hitPlayer = false
+      for (const p of players) {
+        if (distSq(bx, by, p.x, p.y) < hitRadiusSq) {
+          p.health = Math.max(0, p.health - ENEMY_BULLET_DAMAGE)
+          hitPlayer = true
+          break
+        }
+      }
+      if (!hitPlayer) {
+        liveEnemyBullets.push({ x: bx, y: by, angle: eb.angle })
+      }
+    }
+    enemyBulletsRef.current = liveEnemyBullets
+
+    // Count enemy kills for player 1 (single-player scorekeeping)
+    const prevAlive = s.enemies.filter((e: FpsEnemy) => e.alive).length
+    const nowAlive  = updatedEnemies.filter((e: FpsEnemy) => e.alive).length
+    if (nowAlive < prevAlive) {
+      players[0].kills += prevAlive - nowAlive
+    }
+
+    // ── 5. Publish new state ────────────────────────────────────────────────
     const next: FpsGameState = {
       ...s,
       tick: s.tick + 1,
       players,
       bullets: bulletsInFlight,
+      enemies: updatedEnemies,
     }
 
     stateRef.current = next

@@ -33,6 +33,7 @@ import FpsSplitScreen from './FpsSplitScreen'
 import FpsHandControls from './FpsHandControls'
 import { useGameLoop } from './useGameLoop'
 import { MAP_01, MAP_01_SPAWN_P1, MAP_01_SPAWN_P2 } from './maps'
+import { spawnEnemiesForMap01 } from './enemies'
 import './FpsGame.css'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -60,6 +61,7 @@ function makeInitialState(mode: 'single' | 'splitscreen'): FpsGameState {
       },
     ],
     bullets: [],
+    enemies: spawnEnemiesForMap01(),
     map: MAP_01,
     mode,
     tick: 0,
@@ -222,6 +224,9 @@ function SinglePlayerView({ containerW, containerH, showHandControls }: SinglePl
         <HealthBar health={gameState.players[0].health} />
         <div className="fps-hud__kills">
           {'💀'} {gameState.players[0].kills} / {KILLS_TO_WIN}
+        </div>
+        <div className="fps-hud__enemies">
+          {'👾'} {gameState.enemies.filter((e) => e.alive).length} enemies left
         </div>
         <div className="fps-hud__controls">
           {isPointerLocked ? 'Mouse look · Esc to release' : 'WASD + Space · Click for mouse'}

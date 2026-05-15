@@ -13,7 +13,7 @@
 //   • side === 1  →  E/W face  (60 % brightness for depth cue)
 
 import { useRef, useEffect, useCallback } from 'react'
-import type { FpsGameState, RayHit } from './types'
+import type { FpsGameState, RayHit, FpsEnemy } from './types'
 import { castRays } from './raycast'
 
 // ── Colour palette ─────────────────────────────────────────────────────────────
@@ -57,6 +57,106 @@ function hslToString(h: number, s: number, l: number, brightness: number): strin
 function wallColorFor(tileType: number): readonly [number, number, number] {
   const idx = Math.max(1, tileType) % WALL_COLORS_HSL.length || 1
   return WALL_COLORS_HSL[idx]
+}
+
+// ── Enemy sprite renderer ─────────────────────────────────────────────────────
+//
+// Classic Z-sorted sprite projection:
+//   1. Translate sprite to camera space.
+//   2. Project onto the screen plane.
+//   3. Clip each sprite column against the Z-buffer.
+//   4. Draw a coloured rectangle (no texture atlas required).
+
+/** Colours per enemy kind */
+const ENEMY_COLORS: Record<FpsEnemy['kind'], string> = {
+  stationary: '#dc2626',  // red
+  patrol:     '#d97706',  // amber
+  chase:      '#7c3aed',  // violet
+}
+
+/**
+ * Render all enemies as flat-shaded sprites into the canvas context.
+ */
+function renderEnemySprites(
+  ctx: CanvasRenderingContext2D,
+  enemies: readonly FpsEnemy[],
+  player: { x: number; y: number; angle: number },
+  zBuffer: Float32Array,
+  width: number,
+  height: number,
+  fov?: number,
+): void {
+  const defaultFov = 2 * Math.atan(0.66)
+  const activeFov = fov ?? defaultFov
+  const planeMag = Math.tan(activeFov / 2)
+
+  const dirX = Math.cos(player.angle)
+  const dirY = Math.sin(player.angle)
+  const planeX = -dirY * planeMag
+  const planeY =  dirX * planeMag
+
+  // Sort enemies furthest-first so nearer ones are drawn on top
+  const visible = enemies.filter((e) => e.alive).slice().sort((a, b) => {
+    const da = (a.x - player.x) ** 2 + (a.y - player.y) ** 2
+    const db = (b.x - player.x) ** 2 + (b.y - player.y) ** 2
+    return db - da
+  })
+
+  for (const enemy of visible) {
+    // Translate sprite relative to camera
+    const sx = enemy.x - player.x
+    const sy = enemy.y - player.y
+
+    // Inverse camera matrix  [ planeX  dirX ]^-1
+    const invDet = 1 / (planeX * dirY - dirX * planeY)
+    const transformX = invDet * ( dirY * sx - dirX * sy)
+    const transformY = invDet * (-planeY * sx + planeX * sy)
+
+    // Sprite is behind the camera plane – skip
+    if (transformY <= 0.1) continue
+
+    const spriteScreenX = Math.round((width / 2) * (1 + transformX / transformY))
+
+    // Sprite height on screen
+    const spriteH = Math.abs(Math.round(height / transformY))
+    const drawStartY = Math.max(0, Math.round((height - spriteH) / 2))
+    const drawEndY   = Math.min(height, drawStartY + spriteH)
+
+    // Sprite width (square sprite)
+    const spriteW = Math.abs(Math.round(width / transformY * 0.5))
+    const drawStartX = Math.max(0, spriteScreenX - Math.round(spriteW / 2))
+    const drawEndX   = Math.min(width, spriteScreenX + Math.round(spriteW / 2))
+
+    if (drawStartX >= drawEndX) continue
+
+    const color = ENEMY_COLORS[enemy.kind] ?? '#ffffff'
+
+    // Draw sprite column by column, respecting the Z-buffer
+    for (let stripe = drawStartX; stripe < drawEndX; stripe++) {
+      if (stripe < 0 || stripe >= width) continue
+      if (transformY >= zBuffer[stripe]) continue  // wall is closer
+
+      ctx.fillStyle = color
+      ctx.fillRect(stripe, drawStartY, 1, drawEndY - drawStartY)
+    }
+
+    // Draw a dark outline/edge strip for visual distinction (optional)
+    ctx.fillStyle = 'rgba(0,0,0,0.4)'
+    ctx.fillRect(drawStartX, drawStartY, 1, drawEndY - drawStartY)
+    ctx.fillRect(drawEndX - 1, drawStartY, 1, drawEndY - drawStartY)
+
+    // Health bar above sprite
+    const hpBarW = Math.max(4, spriteW)
+    const hpBarX = spriteScreenX - Math.round(hpBarW / 2)
+    const hpBarY = drawStartY - 7
+    if (hpBarY >= 0 && hpBarX >= 0 && hpBarX + hpBarW <= width) {
+      const hpFrac = Math.max(0, enemy.health / 50)
+      ctx.fillStyle = '#1e293b'
+      ctx.fillRect(hpBarX, hpBarY, hpBarW, 4)
+      ctx.fillStyle = hpFrac > 0.5 ? '#22c55e' : hpFrac > 0.25 ? '#f59e0b' : '#ef4444'
+      ctx.fillRect(hpBarX, hpBarY, Math.round(hpBarW * hpFrac), 4)
+    }
+  }
 }
 
 // ── Props ──────────────────────────────────────────────────────────────────────
@@ -130,6 +230,8 @@ export function FpsRenderer({
     ctx.fillRect(0, halfH, width, halfH)
 
     // ── 3. Wall strips (one fillRect per column) ───────────────────────────
+    // Also build a Z-buffer (perpendicular distance per column) for sprite clipping
+    const zBuffer = new Float32Array(width)
     for (let col = 0; col < width; col++) {
       const hit = hits[col]
       if (!hit) continue
@@ -147,7 +249,12 @@ export function FpsRenderer({
       ctx.fillStyle = hslToString(h, s, l, brightness)
 
       ctx.fillRect(col, drawY, 1, stripH)
+      zBuffer[col] = hit.distance
     }
+
+    // ── 4. Enemy sprites ────────────────────────────────────────────────────
+    const player = state.players[playerIndex]
+    renderEnemySprites(ctx, state.enemies, player, zBuffer, width, height, fov)
   }, [state, rays, width, height, playerIndex, fov])
 
   // Redraw on every render / whenever deps change

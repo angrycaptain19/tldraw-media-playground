@@ -15,6 +15,7 @@ import type { FpsGameState } from './types'
 import { FpsRenderer } from './FpsRenderer'
 import { useGameLoop } from './useGameLoop'
 import { MAP_01, MAP_01_SPAWN_P1, MAP_01_SPAWN_P2 } from './maps'
+import { spawnEnemiesForMap01 } from './enemies'
 import './FpsSplitScreen.css'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -42,6 +43,7 @@ function makeInitialState(): FpsGameState {
       },
     ],
     bullets: [],
+    enemies: spawnEnemiesForMap01(),
     map: MAP_01,
     mode: 'splitscreen',
     tick: 0,
