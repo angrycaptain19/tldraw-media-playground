@@ -118,6 +118,32 @@ function WinOverlay({
   )
 }
 
+// ── Pointer-lock overlay – shown when mouse is not captured ───────────────────
+
+function PointerLockOverlay({ onClick }: { onClick: () => void }) {
+  return (
+    <div
+      className="fps-pointer-lock-overlay"
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      aria-label="Click to enable mouse look"
+      onKeyDown={(e) => { if (e.key === 'Enter') onClick() }}
+    >
+      <div className="fps-pointer-lock-overlay__box">
+        <div className="fps-pointer-lock-overlay__icon">🖱️</div>
+        <p className="fps-pointer-lock-overlay__title">Click to Play</p>
+        <p className="fps-pointer-lock-overlay__hint">
+          WASD to move &amp; strafe · Mouse to look · Space to fire
+        </p>
+        <p className="fps-pointer-lock-overlay__hint fps-pointer-lock-overlay__hint--small">
+          Arrow keys also turn · Esc to release mouse
+        </p>
+      </div>
+    </div>
+  )
+}
+
 // ── Single-player inner component ──────────────────────────────────────────────
 
 interface SinglePlayerViewProps {
@@ -130,6 +156,35 @@ function SinglePlayerView({ containerW, containerH, showHandControls }: SinglePl
   const [p1HandInput, setP1HandInput] = useState<FpsExternalInput | undefined>(undefined)
   const [restartKey, setRestartKey] = useState(0)
   const [initialState] = useState<FpsGameState>(() => makeInitialState('single'))
+
+  // ── Pointer lock ─────────────────────────────────────────────────────────
+  const [isPointerLocked, setIsPointerLocked] = useState(false)
+  const viewRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    function onLockChange() {
+      setIsPointerLocked(document.pointerLockElement !== null)
+    }
+    function onLockError() {
+      setIsPointerLocked(false)
+    }
+    document.addEventListener('pointerlockchange', onLockChange)
+    document.addEventListener('pointerlockerror', onLockError)
+    return () => {
+      document.removeEventListener('pointerlockchange', onLockChange)
+      document.removeEventListener('pointerlockerror', onLockError)
+      if (document.pointerLockElement !== null) {
+        document.exitPointerLock()
+      }
+    }
+  }, [])
+
+  const requestPointerLock = useCallback(() => {
+    const el = viewRef.current
+    if (el && document.pointerLockElement === null) {
+      el.requestPointerLock()
+    }
+  }, [])
 
   const externalInputsTuple: [FpsExternalInput?, FpsExternalInput?] = [p1HandInput, undefined]
 
@@ -149,7 +204,12 @@ function SinglePlayerView({ containerW, containerH, showHandControls }: SinglePl
   }, [])
 
   return (
-    <div key={restartKey} className="fps-single-view" style={{ width: containerW, height: containerH }}>
+    <div
+      key={restartKey}
+      ref={viewRef}
+      className="fps-single-view"
+      style={{ width: containerW, height: containerH }}
+    >
       <FpsRenderer
         state={gameState}
         width={containerW}
@@ -163,11 +223,18 @@ function SinglePlayerView({ containerW, containerH, showHandControls }: SinglePl
         <div className="fps-hud__kills">
           {'💀'} {gameState.players[0].kills} / {KILLS_TO_WIN}
         </div>
-        <div className="fps-hud__controls">WASD + Space</div>
+        <div className="fps-hud__controls">
+          {isPointerLocked ? 'Mouse look · Esc to release' : 'WASD + Space · Click for mouse'}
+        </div>
       </div>
 
       {showHandControls && (
         <FpsHandControls playerId={0} onInput={handleP1Input} />
+      )}
+
+      {/* Prompt to enable pointer lock when mouse is not captured */}
+      {!isPointerLocked && !showHandControls && (
+        <PointerLockOverlay onClick={requestPointerLock} />
       )}
 
       {winner !== null && (

@@ -47,10 +47,16 @@ export interface FpsExternalInput {
   forward: boolean
   /** Move backward */
   back: boolean
-  /** Turn / strafe left */
+  /** Turn left (used when mouse look is unavailable) */
   left: boolean
-  /** Turn / strafe right */
+  /** Turn right (used when mouse look is unavailable) */
   right: boolean
+  /** Strafe left (A key in WASD layout) */
+  strafeLeft?: boolean
+  /** Strafe right (D key in WASD layout) */
+  strafeRight?: boolean
+  /** Mouse X movement delta in pixels (positive = look right); consumed each frame */
+  mouseDeltaX?: number
   /** Fire weapon */
   fire: boolean
 }

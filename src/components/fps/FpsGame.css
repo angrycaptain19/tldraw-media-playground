@@ -287,3 +287,56 @@
   text-transform: uppercase;
   text-shadow: 0 0 20px #f59e0b88;
 }
+
+/* ── Pointer-lock overlay ────────────────────────────────────────────────── */
+
+.fps-pointer-lock-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  cursor: pointer;
+  backdrop-filter: blur(2px);
+}
+
+.fps-pointer-lock-overlay__box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2rem 2.5rem;
+  background: rgba(22, 27, 34, 0.92);
+  border: 1px solid rgba(125, 211, 252, 0.25);
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+.fps-pointer-lock-overlay__icon {
+  font-size: 2.5rem;
+  line-height: 1;
+}
+
+.fps-pointer-lock-overlay__title {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 900;
+  color: #7dd3fc;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.fps-pointer-lock-overlay__hint {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #94a3b8;
+  letter-spacing: 0.04em;
+  text-align: center;
+}
+
+.fps-pointer-lock-overlay__hint--small {
+  font-size: 0.72rem;
+  color: #64748b;
+}
