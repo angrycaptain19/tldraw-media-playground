@@ -4,80 +4,36 @@
 
 // ── Map ────────────────────────────────────────────────────────────────────────
 
-export interface FpsMapTile {
-  /** Solid (wall) = true, walkable = false */
-  solid: boolean
-  /** Optional texture / color identifier */
-  textureId?: string
-}
-
-export interface FpsMap {
-  /** 2-D grid of tiles; map[row][col] */
-  tiles: FpsMapTile[][]
-  /** Width in tiles */
-  width: number
-  /** Height in tiles */
-  height: number
-  /** World-space units per tile */
-  tileSize: number
-  /** Player spawn position */
-  spawnX: number
-  spawnY: number
-  /** Compass angle the player faces on spawn (degrees, 0 = east) */
-  spawnAngle: number
-}
+/**
+ * A 2-D tile array where 0 = empty/walkable and 1+ = wall type.
+ * Indexed as map[row][col].
+ */
+export type FpsMap = number[][]
 
 // ── Entities ──────────────────────────────────────────────────────────────────
 
 export interface FpsPlayer {
-  /** Unique player id (peerId for multiplayer) */
-  id: string
   /** World-space X position */
   x: number
   /** World-space Y position */
   y: number
-  /** Camera / movement angle in degrees */
+  /** Camera / movement angle in radians */
   angle: number
   /** Remaining health (0-100) */
   health: number
-  /** Ammo in current magazine */
-  ammo: number
   /** Player kill count */
-  score: number
-  /** True while the player is alive */
-  alive: boolean
+  kills: number
 }
 
 export interface FpsBullet {
-  /** Unique bullet id */
-  id: string
-  /** Owner player id */
-  ownerId: string
-  /** World-space X origin */
-  x: number
-  /** World-space Y origin */
-  y: number
-  /** Direction angle in degrees */
-  angle: number
-  /** Remaining travel distance before the bullet despawns */
-  range: number
-}
-
-export interface FpsEnemy {
-  /** Unique enemy id */
-  id: string
   /** World-space X position */
   x: number
   /** World-space Y position */
   y: number
-  /** Facing angle in degrees */
+  /** Direction angle in radians */
   angle: number
-  /** Remaining health */
-  health: number
-  /** True while the enemy is alive */
-  alive: boolean
-  /** Behaviour type; downstream tasks define the full union */
-  kind: 'patrol' | 'chase' | 'stationary'
+  /** Index of the owning player (0 = player 1, 1 = player 2) */
+  ownerId: 0 | 1
 }
 
 // ── Input ─────────────────────────────────────────────────────────────────────
@@ -90,40 +46,51 @@ export interface FpsExternalInput {
   /** Move forward */
   forward: boolean
   /** Move backward */
-  backward: boolean
-  /** Strafe left */
-  strafeLeft: boolean
-  /** Strafe right */
-  strafeRight: boolean
-  /** Turn left */
-  turnLeft: boolean
-  /** Turn right */
-  turnRight: boolean
+  back: boolean
+  /** Turn / strafe left */
+  left: boolean
+  /** Turn / strafe right */
+  right: boolean
   /** Fire weapon */
-  shoot: boolean
-  /** Reload weapon */
-  reload: boolean
-  /** Mouse / pointer delta X (pixels) */
-  mouseDeltaX: number
+  fire: boolean
 }
 
-// ── Game State ─────────────────────────────────────────────────────────────────
-
-export type FpsGamePhase = 'loading' | 'lobby' | 'playing' | 'paused' | 'roundOver'
+// ── Game State ────────────────────────────────────────────────────────────────
 
 export interface FpsGameState {
-  /** Current phase of the game */
-  phase: FpsGamePhase
-  /** All connected players keyed by id */
-  players: Record<string, FpsPlayer>
-  /** All live bullets keyed by id */
-  bullets: Record<string, FpsBullet>
-  /** All enemies keyed by id */
-  enemies: Record<string, FpsEnemy>
-  /** The active map */
+  /** Both players; index 0 = player 1, index 1 = player 2 */
+  players: [FpsPlayer, FpsPlayer]
+  /** All live bullets */
+  bullets: FpsBullet[]
+  /** The active tile map */
   map: FpsMap
+  /** Single-player or local split-screen */
+  mode: 'single' | 'splitscreen'
   /** Monotonic tick counter (incremented every game-loop frame) */
   tick: number
-  /** Elapsed ms since the round started */
-  elapsedMs: number
+}
+
+// ── Raycasting ────────────────────────────────────────────────────────────────
+
+export interface RayHit {
+  /** Perpendicular distance from the camera plane to the hit wall (world units) */
+  distance: number
+  /** 0 = ray hit an E/W (vertical) wall face, 1 = ray hit a N/S (horizontal) wall face */
+  side: 0 | 1
+  /** Tile type of the struck wall (matches values in FpsMap) */
+  tileType: number
+  /** Fractional position of the hit along the wall face (0-1), used for texture mapping */
+  wallX: number
+}
+
+// ── Enemy entity – used by the game loop and renderer stubs ──────────────────
+
+export interface FpsEnemy {
+  id: string
+  x: number
+  y: number
+  angle: number
+  health: number
+  alive: boolean
+  kind: 'patrol' | 'chase' | 'stationary'
 }

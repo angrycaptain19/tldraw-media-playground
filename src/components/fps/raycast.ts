@@ -2,37 +2,25 @@
 // Stub implementation of a DDA (Digital Differential Analysis) ray-caster.
 // Downstream tasks will replace the function body with real geometry code.
 
-import type { FpsMap } from './types'
+import type { FpsMap, RayHit } from './types'
+
+// Re-export RayHit so downstream tasks can import it from either module.
+export type { RayHit } from './types'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
-
-export interface RayHit {
-  /** How far from the origin the ray hit something (world units) */
-  distance: number
-  /** Column index on the screen that this ray was cast for */
-  column: number
-  /** Whether the ray hit the vertical (N/S) or horizontal (E/W) face of a tile */
-  side: 'vertical' | 'horizontal'
-  /** Grid X of the tile that was hit */
-  tileX: number
-  /** Grid Y of the tile that was hit */
-  tileY: number
-  /** Optional texture id from the hit tile */
-  textureId?: string
-}
 
 export interface CastRayOptions {
   /** World-space origin X */
   originX: number
   /** World-space origin Y */
   originY: number
-  /** Ray direction angle in degrees (0 = east, clockwise) */
-  angleDeg: number
+  /** Ray direction angle in radians */
+  angle: number
   /** Maximum ray travel distance in world units */
   maxDistance: number
   /** The map to test against */
   map: FpsMap
-  /** Screen column this ray represents (used to populate RayHit.column) */
+  /** Screen column this ray represents */
   column: number
 }
 
