@@ -43,7 +43,7 @@ interface Player {
 }
 
 interface ActiveCoin extends LevelCoin { collected: boolean; id: number }
-interface ActiveEnemy extends LevelEnemy { alive: boolean; squished: boolean; squishTimer: number; vx: number; id: number }
+interface ActiveEnemy extends LevelEnemy { alive: boolean; squished: boolean; squishTimer: number; vx: number; vy: number; id: number }
 
 type GamePhase = 'story' | 'playing' | 'paused' | 'levelClear' | 'won' | 'dead' | 'gameOver'
 
@@ -66,7 +66,7 @@ function coinsFromLevel(lvl: LevelDef): ActiveCoin[] {
 }
 
 function enemiesFromLevel(lvl: LevelDef): ActiveEnemy[] {
-  return lvl.enemies.map((e, i) => ({ ...e, alive: true, squished: false, squishTimer: 0, vx: e.speed, id: i }))
+  return lvl.enemies.map((e, i) => ({ ...e, alive: true, squished: false, squishTimer: 0, vx: e.speed, vy: 0, id: i }))
 }
 
 // ── Hand input smoothing ───────────────────────────────────────────────────────
@@ -251,10 +251,31 @@ export default function PlatformerGame() {
         return t <= 0 ? { ...e, alive: false } : { ...e, squishTimer: t }
       }
       let { x, vx } = e
+      let vy = e.vy
       const prevX = x
+      let ey = e.y
+
+      // Apply gravity to non-flyer enemies so they can't float over gaps
+      if (e.kind !== 'flyer') {
+        vy += GRAVITY
+        ey += vy
+      }
+
       x += vx
       if (x <= 0 || x >= LEVEL_W - PLAYER_W) vx = -vx
-      const ey = e.y
+
+      // Platform collision for non-flyer enemies (floor only)
+      if (e.kind !== 'flyer') {
+        for (const pl of lvl.platforms) {
+          if (pl.kind === 'cloud') continue
+          if (!rectOverlap(x, ey, PLAYER_W, PLAYER_H, pl.x, pl.y, pl.w, pl.h)) continue
+          const prevBottom = e.y + PLAYER_H
+          if (vy >= 0 && prevBottom <= pl.y + 4) {
+            ey = pl.y - PLAYER_H; vy = 0
+          }
+        }
+      }
+
       const hitWall = lvl.platforms.some(pl => {
         if (pl.kind === 'cloud') return false
         if (!rectOverlap(x, ey, PLAYER_W, PLAYER_H, pl.x, pl.y, pl.w, pl.h)) return false
@@ -263,20 +284,30 @@ export default function PlatformerGame() {
         return true
       })
       if (hitWall) { vx = -vx; x = prevX }
-      const over = lvl.platforms.some(pl =>
-        x + PLAYER_W > pl.x && x < pl.x + pl.w &&
-        ey + PLAYER_H >= pl.y && ey + PLAYER_H <= pl.y + 10
-      )
-      if (!over) vx = -vx
+
+      // For non-flyer enemies, reverse direction at platform edges (as a backup)
+      if (e.kind !== 'flyer') {
+        const over = lvl.platforms.some(pl =>
+          x + PLAYER_W > pl.x && x < pl.x + pl.w &&
+          ey + PLAYER_H >= pl.y && ey + PLAYER_H <= pl.y + 10
+        )
+        if (!over && vy === 0) vx = -vx
+      }
+
+      // Kill non-flyer enemies that fall off the level
+      if (e.kind !== 'flyer' && ey > LEVEL_H + 60) {
+        return { ...e, x, vy, y: ey, vx, alive: false }
+      }
+
       if (rectOverlap(p.x, p.y, PLAYER_W, PLAYER_H, x, ey, PLAYER_W, PLAYER_H)) {
         const prevBottom2 = playerRef.current.y + PLAYER_H
         if (prevBottom2 <= ey + 12 && p.vy >= 0) {
           p.vy = -7
           const pts = scoreRef.current + 200; scoreRef.current = pts; setScore(pts)
-          return { ...e, x, vx, squished: true, squishTimer: 20 }
+          return { ...e, x, vy, y: ey, vx, squished: true, squishTimer: 20 }
         } else { died = true }
       }
-      return { ...e, x, vx }
+      return { ...e, x, vy, y: ey, vx }
     })
     enemiesRef.current = updatedEnemies
     setEnemies([...updatedEnemies])
