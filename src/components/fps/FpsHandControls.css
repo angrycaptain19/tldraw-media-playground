@@ -1,0 +1,99 @@
+/* ─── FpsHandControls ───────────────────────────────────────────────────────── */
+/*                                                                               */
+/* Renders in a small corner overlay so it never obscures the 3-D game view.    */
+/* The component is absolutely-positioned by the consumer (FpsGame) via the     */
+/* .fps-hand-controls--p1 / --p2 variants below.                                */
+
+.fps-hand-controls {
+  position: absolute;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  width: 240px;
+  background: rgba(10, 18, 30, 0.88);
+  border: 1px solid rgba(125, 211, 252, 0.25);
+  border-radius: 8px;
+  padding: 0.5rem;
+  backdrop-filter: blur(6px);
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 0.78rem;
+  color: #e2e8f0;
+  pointer-events: auto;
+
+  /* Constrain the camera panel height so it does not take over the view */
+  max-height: 50vh;
+  overflow: hidden;
+}
+
+/* Player 1: bottom-left corner */
+.fps-hand-controls--p1 {
+  bottom: 8px;
+  left: 8px;
+}
+
+/* Player 2: bottom-right corner */
+.fps-hand-controls--p2 {
+  bottom: 8px;
+  right: 8px;
+}
+
+/* ── Label ──────────────────────────────────────────────────────────────────── */
+
+.fps-hand-controls__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7dd3fc;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid rgba(125, 211, 252, 0.15);
+}
+
+/* ── Panel wrapper ───────────────────────────────────────────────────────────── */
+/* Shrinks the hand-recognition panel to fit the compact overlay. */
+
+.fps-hand-controls__panel {
+  flex: 1;
+  overflow: hidden;
+}
+
+.fps-hand-controls__panel .hrp {
+  max-width: 100%;
+  border-radius: 6px;
+  font-size: 0.75rem;
+}
+
+/* Keep the video/canvas compact */
+.fps-hand-controls__panel .hrp__video,
+.fps-hand-controls__panel .hrp__canvas {
+  max-height: 160px;
+  object-fit: cover;
+}
+
+/* ── Gesture legend ──────────────────────────────────────────────────────────── */
+
+.fps-hand-controls__legend {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding-top: 0.3rem;
+  border-top: 1px solid rgba(125, 211, 252, 0.12);
+}
+
+.fps-hand-controls__legend-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.fps-hand-controls__legend-icon {
+  font-size: 0.9rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.fps-hand-controls__legend-text {
+  color: #94a3b8;
+  line-height: 1.3;
+}
