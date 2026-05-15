@@ -9,13 +9,19 @@
 //       Clap + right fist held  → jump right
 //       Clap + left  fist held  → jump left
 //       Open_Palm (either hand) → pause / resume
-//   • Single playable level with a goal flag to win
-//   • HUD: score, coins collected, lives, progress bar
+//   • 50 levels across 5 worlds (Sunny Meadow → Gloom King's Tower)
+//   • Story cards shown between levels
+//   • HUD: score, coins, lives, level indicator, progress bar
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import HandRecognitionPanel from './HandRecognitionPanel'
 import type { HandData } from '../hooks/useHandRecognition'
 import { GESTURE_FIST, GESTURE_OPEN_PALM } from '../hooks/useHandRecognition'
+import {
+  ALL_LEVELS, LEVEL_W, LEVEL_H, GROUND_Y, TOTAL_LEVELS,
+  WORLD_NAMES, WORLD_COLORS,
+  type LevelDef, type LevelCoin, type LevelEnemy,
+} from './platformerLevels'
 import './PlatformerGame.css'
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -25,15 +31,7 @@ const PLAYER_SPEED   = 4
 const JUMP_FORCE     = 11
 const PLAYER_W       = 36
 const PLAYER_H       = 44
-const LEVEL_W        = 3200
-const LEVEL_H        = 520
-const GROUND_Y       = LEVEL_H - 64
-
-// Normalised horizontal distance (0-1 scale) below which both index tips are
-// considered "close together" = a clap/hands-together gesture.
 const CLAP_THRESHOLD = 0.20
-
-// Minimum gesture confidence to act on a recognised gesture.
 const MIN_GESTURE_CONF = 0.65
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -44,79 +42,10 @@ interface Player {
   animFrame: number; animTick: number
 }
 
-interface Platform {
-  x: number; y: number; w: number; h: number
-  kind: 'ground' | 'brick' | 'cloud' | 'pipe'
-}
+interface ActiveCoin extends LevelCoin { collected: boolean; id: number }
+interface ActiveEnemy extends LevelEnemy { alive: boolean; squished: boolean; squishTimer: number; vx: number; id: number }
 
-interface Coin {
-  id: number; x: number; y: number; collected: boolean
-}
-
-interface Enemy {
-  id: number; x: number; y: number; vx: number
-  alive: boolean; squished: boolean; squishTimer: number
-}
-
-type GamePhase = 'playing' | 'paused' | 'won' | 'dead' | 'gameOver'
-
-// ── Level ─────────────────────────────────────────────────────────────────────
-
-const PLATFORMS: Platform[] = [
-  { x: 0,    y: GROUND_Y,       w: LEVEL_W, h: 64,  kind: 'ground' },
-  { x: 300,  y: GROUND_Y - 100, w: 120,     h: 18,  kind: 'brick' },
-  { x: 500,  y: GROUND_Y - 160, w: 100,     h: 18,  kind: 'brick' },
-  { x: 680,  y: GROUND_Y - 100, w: 100,     h: 18,  kind: 'brick' },
-  { x: 870,  y: GROUND_Y - 150, w: 140,     h: 18,  kind: 'cloud' },
-  { x: 1060, y: GROUND_Y - 200, w: 110,     h: 18,  kind: 'cloud' },
-  { x: 1230, y: GROUND_Y - 130, w: 130,     h: 18,  kind: 'brick' },
-  { x: 1450, y: GROUND_Y - 80,  w: 90,      h: 18,  kind: 'brick' },
-  { x: 1560, y: GROUND_Y - 160, w: 90,      h: 18,  kind: 'brick' },
-  { x: 1670, y: GROUND_Y - 240, w: 90,      h: 18,  kind: 'brick' },
-  { x: 1850, y: GROUND_Y - 180, w: 200,     h: 18,  kind: 'brick' },
-  { x: 2100, y: GROUND_Y - 72,  w: 56,      h: 72,  kind: 'pipe' },
-  { x: 2250, y: GROUND_Y - 96,  w: 56,      h: 96,  kind: 'pipe' },
-  { x: 2400, y: GROUND_Y - 160, w: 120,     h: 18,  kind: 'cloud' },
-  { x: 2560, y: GROUND_Y - 200, w: 100,     h: 18,  kind: 'cloud' },
-  { x: 2700, y: GROUND_Y - 140, w: 140,     h: 18,  kind: 'brick' },
-  { x: 2900, y: GROUND_Y - 100, w: 120,     h: 18,  kind: 'brick' },
-  { x: 3050, y: GROUND_Y - 180, w: 100,     h: 18,  kind: 'brick' },
-]
-
-const INITIAL_COINS: Coin[] = [
-  { id:  1, x:  330, y: GROUND_Y - 150, collected: false },
-  { id:  2, x:  360, y: GROUND_Y - 150, collected: false },
-  { id:  3, x:  390, y: GROUND_Y - 150, collected: false },
-  { id:  4, x:  530, y: GROUND_Y - 210, collected: false },
-  { id:  5, x:  560, y: GROUND_Y - 210, collected: false },
-  { id:  6, x:  890, y: GROUND_Y - 200, collected: false },
-  { id:  7, x:  930, y: GROUND_Y - 200, collected: false },
-  { id:  8, x: 1080, y: GROUND_Y - 250, collected: false },
-  { id:  9, x: 1110, y: GROUND_Y - 250, collected: false },
-  { id: 10, x: 1860, y: GROUND_Y - 230, collected: false },
-  { id: 11, x: 1900, y: GROUND_Y - 230, collected: false },
-  { id: 12, x: 1940, y: GROUND_Y - 230, collected: false },
-  { id: 13, x: 1980, y: GROUND_Y - 230, collected: false },
-  { id: 14, x: 2420, y: GROUND_Y - 210, collected: false },
-  { id: 15, x: 2460, y: GROUND_Y - 210, collected: false },
-  { id: 16, x: 2720, y: GROUND_Y - 190, collected: false },
-  { id: 17, x: 2760, y: GROUND_Y - 190, collected: false },
-  { id: 18, x: 2920, y: GROUND_Y - 150, collected: false },
-  { id: 19, x: 3060, y: GROUND_Y - 230, collected: false },
-  { id: 20, x: 3100, y: GROUND_Y - 230, collected: false },
-]
-
-const INITIAL_ENEMIES: Enemy[] = [
-  { id: 1, x:  600, y: GROUND_Y - PLAYER_H, vx: -1.2, alive: true, squished: false, squishTimer: 0 },
-  { id: 2, x:  900, y: GROUND_Y - PLAYER_H, vx:  1.0, alive: true, squished: false, squishTimer: 0 },
-  { id: 3, x: 1300, y: GROUND_Y - PLAYER_H, vx: -1.4, alive: true, squished: false, squishTimer: 0 },
-  { id: 4, x: 1900, y: GROUND_Y - PLAYER_H, vx: -1.2, alive: true, squished: false, squishTimer: 0 },
-  { id: 5, x: 2350, y: GROUND_Y - PLAYER_H, vx:  1.0, alive: true, squished: false, squishTimer: 0 },
-  { id: 6, x: 2700, y: GROUND_Y - PLAYER_H, vx: -1.3, alive: true, squished: false, squishTimer: 0 },
-  { id: 7, x: 3000, y: GROUND_Y - PLAYER_H, vx: -1.5, alive: true, squished: false, squishTimer: 0 },
-]
-
-const GOAL_X = LEVEL_W - 140
+type GamePhase = 'story' | 'playing' | 'paused' | 'levelClear' | 'won' | 'dead' | 'gameOver'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -132,21 +61,24 @@ function makePlayer(): Player {
            onGround: false, facingRight: true, animFrame: 0, animTick: 0 }
 }
 
-// ── Hand input smoothing ───────────────────────────────────────────────────────
-// A tiny ring-buffer majority-vote smoother so flaky frames don't flip controls.
-// We keep the last N gesture readings and require a majority to commit a change.
+function coinsFromLevel(lvl: LevelDef): ActiveCoin[] {
+  return lvl.coins.map((c, i) => ({ ...c, collected: false, id: i }))
+}
 
-const GESTURE_HISTORY = 4  // frames to smooth over
+function enemiesFromLevel(lvl: LevelDef): ActiveEnemy[] {
+  return lvl.enemies.map((e, i) => ({ ...e, alive: true, squished: false, squishTimer: 0, vx: e.speed, id: i }))
+}
+
+// ── Hand input smoothing ───────────────────────────────────────────────────────
+const GESTURE_HISTORY = 4
 
 function createGestureBuffer() {
   return { buf: Array(GESTURE_HISTORY).fill('None') as string[], idx: 0 }
 }
-
 function pushGesture(gb: { buf: string[]; idx: number }, gesture: string) {
   gb.buf[gb.idx] = gesture
   gb.idx = (gb.idx + 1) % GESTURE_HISTORY
 }
-
 function dominantGesture(gb: { buf: string[]; idx: number }): string {
   const counts: Record<string, number> = {}
   for (const g of gb.buf) counts[g] = (counts[g] ?? 0) + 1
@@ -160,79 +92,84 @@ function dominantGesture(gb: { buf: string[]; idx: number }): string {
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function PlatformerGame() {
-  const [phase,    setPhase]    = useState<GamePhase>('playing')
-  const [coins,    setCoins]    = useState<Coin[]>(() => INITIAL_COINS.map(c => ({ ...c })))
-  const [enemies,  setEnemies]  = useState<Enemy[]>(() => INITIAL_ENEMIES.map(e => ({ ...e })))
-  const [player,   setPlayer]   = useState<Player>(makePlayer)
-  const [lives,    setLives]    = useState(3)
-  const [score,    setScore]    = useState(0)
-  const [camera,   setCamera]   = useState(0)
-  const [handMode, setHandMode] = useState(false)
+  const [levelIndex, setLevelIndex] = useState(0)
+  const [phase,      setPhase]      = useState<GamePhase>('story')
+  const [coins,      setCoins]      = useState<ActiveCoin[]>(() => coinsFromLevel(ALL_LEVELS[0]))
+  const [enemies,    setEnemies]    = useState<ActiveEnemy[]>(() => enemiesFromLevel(ALL_LEVELS[0]))
+  const [player,     setPlayer]     = useState<Player>(makePlayer)
+  const [lives,      setLives]      = useState(3)
+  const [score,      setScore]      = useState(0)
+  const [camera,     setCamera]     = useState(0)
+  const [handMode,   setHandMode]   = useState(false)
 
-  // Live debug display for hand gesture panel
   const [handDebug, setHandDebug] = useState<{
     leftGesture: string; rightGesture: string; isClap: boolean
   }>({ leftGesture: 'None', rightGesture: 'None', isClap: false })
 
-  const phaseRef    = useRef<GamePhase>('playing')
-  const playerRef   = useRef<Player>(makePlayer())
-  const coinsRef    = useRef<Coin[]>(INITIAL_COINS.map(c => ({ ...c })))
-  const enemiesRef  = useRef<Enemy[]>(INITIAL_ENEMIES.map(e => ({ ...e })))
-  const livesRef    = useRef(3)
-  const scoreRef    = useRef(0)
-  const cameraRef   = useRef(0)
-  const rafRef      = useRef<number | null>(null)
-  const handModeRef = useRef(false)
-  const keysRef     = useRef<Set<string>>(new Set())
+  const levelIndexRef = useRef(0)
+  const phaseRef      = useRef<GamePhase>('story')
+  const playerRef     = useRef<Player>(makePlayer())
+  const coinsRef      = useRef<ActiveCoin[]>(coinsFromLevel(ALL_LEVELS[0]))
+  const enemiesRef    = useRef<ActiveEnemy[]>(enemiesFromLevel(ALL_LEVELS[0]))
+  const livesRef      = useRef(3)
+  const scoreRef      = useRef(0)
+  const cameraRef     = useRef(0)
+  const rafRef        = useRef<number | null>(null)
+  const handModeRef   = useRef(false)
+  const keysRef       = useRef<Set<string>>(new Set())
 
-  // Smoothed hand input fed into the game loop each tick
   const handInputRef = useRef({ left: false, right: false, jump: false })
+  const leftBufRef   = useRef(createGestureBuffer())
+  const rightBufRef  = useRef(createGestureBuffer())
+  const clapLatchRef       = useRef(false)
+  const palmPauseLatchRef  = useRef(false)
 
-  // Per-hand gesture smoothing buffers (reset when hand mode toggled)
-  const leftBufRef  = useRef(createGestureBuffer())
-  const rightBufRef = useRef(createGestureBuffer())
+  const canvasRef = useRef<HTMLDivElement>(null)
 
-  // Clap latch: once a clap-jump fires, don't re-fire until hands move apart
-  const clapLatchRef = useRef(false)
-
-  // Open-palm pause latch (debounce so one open-palm doesn't toggle twice)
-  const palmPauseLatchRef = useRef(false)
-
-  const canvasRef   = useRef<HTMLDivElement>(null)
-
-  useEffect(() => { phaseRef.current    = phase    }, [phase])
-  useEffect(() => { livesRef.current    = lives    }, [lives])
-  useEffect(() => { scoreRef.current    = score    }, [score])
+  // keep refs in sync
+  useEffect(() => { phaseRef.current      = phase      }, [phase])
+  useEffect(() => { livesRef.current      = lives      }, [lives])
+  useEffect(() => { scoreRef.current      = score      }, [score])
+  useEffect(() => { levelIndexRef.current = levelIndex }, [levelIndex])
   useEffect(() => {
     handModeRef.current = handMode
     if (!handMode) {
-      // Clear hand state when mode is disabled
       handInputRef.current = { left: false, right: false, jump: false }
-      leftBufRef.current  = createGestureBuffer()
-      rightBufRef.current = createGestureBuffer()
-      clapLatchRef.current     = false
+      leftBufRef.current   = createGestureBuffer()
+      rightBufRef.current  = createGestureBuffer()
+      clapLatchRef.current      = false
       palmPauseLatchRef.current = false
     }
   }, [handMode])
 
-  // ── Reset ──────────────────────────────────────────────────────────────────
+  // ── Load a level ──────────────────────────────────────────────────────────
 
-  const resetGame = useCallback(() => {
-    const p = makePlayer()
-    const c = INITIAL_COINS.map(x => ({ ...x }))
-    const e = INITIAL_ENEMIES.map(x => ({ ...x }))
+  const loadLevel = useCallback((idx: number) => {
+    const lvl = ALL_LEVELS[idx]
+    const p   = makePlayer()
+    const c   = coinsFromLevel(lvl)
+    const e   = enemiesFromLevel(lvl)
+    levelIndexRef.current = idx
     playerRef.current  = p
     coinsRef.current   = c
     enemiesRef.current = e
-    livesRef.current   = 3
-    scoreRef.current   = 0
     cameraRef.current  = 0
-    setPlayer(p); setCoins(c); setEnemies(e)
-    setLives(3); setScore(0); setCamera(0)
-    setPhase('playing'); phaseRef.current = 'playing'
+    setLevelIndex(idx)
+    setPlayer(p); setCoins(c); setEnemies(e); setCamera(0)
+    setPhase('story'); phaseRef.current = 'story'
   }, [])
 
-  // ── Kill player ────────────────────────────────────────────────────────────
+  // ── Full reset ────────────────────────────────────────────────────────────
+
+  const resetGame = useCallback(() => {
+    livesRef.current = 3
+    scoreRef.current = 0
+    setLives(3)
+    setScore(0)
+    loadLevel(0)
+  }, [loadLevel])
+
+  // ── Kill player ───────────────────────────────────────────────────────────
 
   const killPlayer = useCallback(() => {
     const newLives = livesRef.current - 1
@@ -251,13 +188,15 @@ export default function PlatformerGame() {
   // ── Game loop ──────────────────────────────────────────────────────────────
 
   const tick = useCallback(() => {
-    if (phaseRef.current !== 'playing') {
+    const currentPhase = phaseRef.current
+    if (currentPhase !== 'playing') {
       rafRef.current = requestAnimationFrame(tick)
       return
     }
 
-    const p = { ...playerRef.current }
-    const hand = handInputRef.current
+    const lvl = ALL_LEVELS[levelIndexRef.current]
+    const p   = { ...playerRef.current }
+    const hand  = handInputRef.current
     const goLeft  = keysRef.current.has('a') || keysRef.current.has('arrowleft')  || hand.left
     const goRight = keysRef.current.has('d') || keysRef.current.has('arrowright') || hand.right
     const doJump  = keysRef.current.has('w') || keysRef.current.has('arrowup') ||
@@ -268,8 +207,6 @@ export default function PlatformerGame() {
     else { p.vx = 0 }
 
     if (doJump && p.onGround) { p.vy = -JUMP_FORCE; p.onGround = false }
-
-    // Jump is a single-frame impulse; clear it after consuming
     if (hand.jump) handInputRef.current = { ...hand, jump: false }
 
     p.vy += GRAVITY
@@ -285,7 +222,7 @@ export default function PlatformerGame() {
 
     // Platform collision
     p.onGround = false
-    for (const plat of PLATFORMS) {
+    for (const plat of lvl.platforms) {
       if (!rectOverlap(p.x, p.y, PLAYER_W, PLAYER_H, plat.x, plat.y, plat.w, plat.h)) continue
       const prevBottom = playerRef.current.y + PLAYER_H
       if (p.vy >= 0 && prevBottom <= plat.y + 4) {
@@ -318,18 +255,15 @@ export default function PlatformerGame() {
       x += vx
       if (x <= 0 || x >= LEVEL_W - PLAYER_W) vx = -vx
       const ey = e.y
-      // Reverse and undo move if the enemy walks into a solid (non-cloud) platform from the side
-      const hitWall = PLATFORMS.some(pl => {
+      const hitWall = lvl.platforms.some(pl => {
         if (pl.kind === 'cloud') return false
         if (!rectOverlap(x, ey, PLAYER_W, PLAYER_H, pl.x, pl.y, pl.w, pl.h)) return false
-        // Already overlapping before the move? skip (edge-case safety)
         if (rectOverlap(prevX, ey, PLAYER_W, PLAYER_H, pl.x, pl.y, pl.w, pl.h)) return false
-        // Sitting on top of this platform is not a side collision
         if (ey + PLAYER_H <= pl.y + 4) return false
         return true
       })
       if (hitWall) { vx = -vx; x = prevX }
-      const over = PLATFORMS.some(pl =>
+      const over = lvl.platforms.some(pl =>
         x + PLAYER_W > pl.x && x < pl.x + pl.w &&
         ey + PLAYER_H >= pl.y && ey + PLAYER_H <= pl.y + 10
       )
@@ -366,10 +300,16 @@ export default function PlatformerGame() {
     coinsRef.current = updatedCoins
     setCoins([...updatedCoins])
 
-    // Win
-    if (p.x + PLAYER_W >= GOAL_X) {
+    // Win / level clear
+    if (p.x + PLAYER_W >= lvl.goalX) {
       playerRef.current = p; setPlayer({ ...p })
-      setPhase('won'); phaseRef.current = 'won'
+      const pts = scoreRef.current + 500; scoreRef.current = pts; setScore(pts)
+      const nextIdx = levelIndexRef.current + 1
+      if (nextIdx >= TOTAL_LEVELS) {
+        setPhase('won'); phaseRef.current = 'won'
+      } else {
+        setPhase('levelClear'); phaseRef.current = 'levelClear'
+      }
       rafRef.current = requestAnimationFrame(tick); return
     }
 
@@ -392,44 +332,36 @@ export default function PlatformerGame() {
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       keysRef.current.add(e.key.toLowerCase())
-      if ((e.key === 'p' || e.key === 'P' || e.key === 'Escape') && phaseRef.current === 'playing') {
+      const ph = phaseRef.current
+      if ((e.key === 'p' || e.key === 'P' || e.key === 'Escape') && ph === 'playing') {
         setPhase('paused'); phaseRef.current = 'paused'
-      } else if ((e.key === 'p' || e.key === 'P' || e.key === 'Escape') && phaseRef.current === 'paused') {
+      } else if ((e.key === 'p' || e.key === 'P' || e.key === 'Escape') && ph === 'paused') {
         setPhase('playing'); phaseRef.current = 'playing'
       }
-      if ((e.key === 'Enter' || e.key === ' ') &&
-          (phaseRef.current === 'gameOver' || phaseRef.current === 'won')) resetGame()
-      if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase())) e.preventDefault()
+      if ((e.key === 'Enter' || e.key === ' ') && (ph === 'story' || ph === 'levelClear')) {
+        setPhase('playing'); phaseRef.current = 'playing'
+      }
+      if ((e.key === 'Enter' || e.key === ' ') && (ph === 'gameOver' || ph === 'won')) {
+        resetGame()
+      }
+      if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase())) {
+        e.preventDefault()
+      }
     }
     function onKeyUp(e: KeyboardEvent) { keysRef.current.delete(e.key.toLowerCase()) }
     window.addEventListener('keydown', onKeyDown)
     window.addEventListener('keyup',   onKeyUp)
-    return () => { window.removeEventListener('keydown', onKeyDown); window.removeEventListener('keyup', onKeyUp) }
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup',   onKeyUp)
+    }
   }, [resetGame])
 
   // ── Hand tracking ──────────────────────────────────────────────────────────
-  //
-  // Gesture mapping (two-hand scheme):
-  //   Right-hand Closed_Fist  → move right   (continuous while held)
-  //   Left-hand  Closed_Fist  → move left    (continuous while held)
-  //   Both hands close together (index tips within CLAP_THRESHOLD of each other)
-  //                           → jump (one shot per clap; latch until hands separate)
-  //   Clap while right fist   → jump right
-  //   Clap while left  fist   → jump left
-  //   Either hand Open_Palm   → pause / resume (debounced)
-  //
-  // Robustness tricks:
-  //   • Per-hand gesture is majority-voted over the last GESTURE_HISTORY frames
-  //     so a single misclassified frame does NOT change the action.
-  //   • We require gestureScore >= MIN_GESTURE_CONF to accept a classification.
-  //   • "No hand" detected → its gesture is treated as 'None' (slot preserved).
 
   const handleHandData = useCallback((data: HandData) => {
     if (!handModeRef.current) return
 
-    // ── 1. Sort hands into Left / Right by MediaPipe handedness ───────────
-    //  MediaPipe reports "Left"/"Right" from the *person's* perspective
-    //  (mirror-aware), so "Right" = player's right hand.
     let leftX:  number | null = null
     let rightX: number | null = null
     let rawLeftGesture  = 'None'
@@ -438,47 +370,35 @@ export default function PlatformerGame() {
 
     for (const hand of data.hands) {
       const g = hand.gestureScore >= MIN_GESTURE_CONF ? hand.gesture : 'None'
-
-      // MediaPipe uses mirrored video by default → "Left" hand appears on
-      // the right side of the frame.  We flip indexTip.x accordingly.
-      const tipX = 1 - hand.indexTip.x  // un-mirror so 0=left, 1=right in world space
+      const tipX = 1 - hand.indexTip.x
 
       if (hand.handedness === 'Left') {
-        rawLeftGesture = g
-        leftX = tipX
+        rawLeftGesture = g; leftX = tipX
       } else {
-        rawRightGesture = g
-        rightX = tipX
+        rawRightGesture = g; rightX = tipX
       }
-
       if (g === GESTURE_OPEN_PALM) hasPalmPause = true
     }
 
-    // ── 2. Push into smoothing buffers ────────────────────────────────────
     pushGesture(leftBufRef.current,  rawLeftGesture)
     pushGesture(rightBufRef.current, rawRightGesture)
 
     const leftGesture  = dominantGesture(leftBufRef.current)
     const rightGesture = dominantGesture(rightBufRef.current)
 
-    // ── 3. Directional movement ───────────────────────────────────────────
     const goLeft  = leftGesture  === GESTURE_FIST
     const goRight = rightGesture === GESTURE_FIST
 
-    // ── 4. Clap / jump detection ──────────────────────────────────────────
-    // Both hands visible AND close together → clap = jump
     const bothVisible = leftX !== null && rightX !== null
     const isClap = bothVisible && Math.abs(rightX! - leftX!) < CLAP_THRESHOLD
 
     let doJump = false
     if (isClap && !clapLatchRef.current) {
-      doJump = true
-      clapLatchRef.current = true
+      doJump = true; clapLatchRef.current = true
     } else if (!isClap) {
       clapLatchRef.current = false
     }
 
-    // ── 5. Pause toggle (open palm, debounced) ────────────────────────────
     if (hasPalmPause && !palmPauseLatchRef.current) {
       palmPauseLatchRef.current = true
       if (phaseRef.current === 'playing') {
@@ -490,27 +410,24 @@ export default function PlatformerGame() {
       palmPauseLatchRef.current = false
     }
 
-    // ── 6. Directional jump override ──────────────────────────────────────
-    // If clapping AND a fist is held, apply horizontal direction to the jump
-    // by setting left/right on the same tick as the jump impulse.
     const jumpLeft  = doJump && goLeft
     const jumpRight = doJump && goRight
 
-    // ── 7. Commit to handInputRef ─────────────────────────────────────────
     handInputRef.current = {
       left:  goLeft  || jumpLeft,
       right: goRight || jumpRight,
       jump:  doJump,
     }
 
-    // ── 8. Update debug display ───────────────────────────────────────────
     setHandDebug({ leftGesture, rightGesture, isClap })
   }, [])
 
   // ── Derived ────────────────────────────────────────────────────────────────
 
+  const lvl            = ALL_LEVELS[levelIndex]
   const collectedCoins = coins.filter(c => c.collected).length
-  const totalCoins     = INITIAL_COINS.length
+  const totalCoins     = lvl.coins.length
+  const worldTheme = WORLD_COLORS[lvl.world]; const worldColor = worldTheme.sky
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -528,8 +445,13 @@ export default function PlatformerGame() {
         <button className={`pl-mode-btn${handMode ? ' pl-mode-btn--active' : ''}`}
           onClick={() => setHandMode(true)}>✋ Hand Tracking</button>
 
+        <span className="pl-level-badge" style={{ background: worldColor }}>
+          {WORLD_NAMES[lvl.world]} · Lv {lvl.levelInWorld + 1}/10
+        </span>
+
         {phase === 'playing' && (
-          <button className="pl-pause-btn" onClick={() => { setPhase('paused'); phaseRef.current = 'paused' }}>
+          <button className="pl-pause-btn"
+            onClick={() => { setPhase('paused'); phaseRef.current = 'paused' }}>
             ⏸ Pause
           </button>
         )}
@@ -550,7 +472,7 @@ export default function PlatformerGame() {
       </div>
 
       {/* ── Game canvas ──────────────────────────────────────────────────── */}
-      <div ref={canvasRef} className="pl-canvas">
+      <div ref={canvasRef} className={`pl-canvas pl-canvas--${lvl.world}`}>
 
         {/* Parallax clouds */}
         <div className="pl-cloud pl-cloud--1" style={{ left: Math.max(0, 200  - camera * 0.3) }} />
@@ -560,7 +482,7 @@ export default function PlatformerGame() {
         <div className="pl-cloud pl-cloud--5" style={{ left: Math.max(0, 2400 - camera * 0.3) }} />
 
         {/* Platforms */}
-        {PLATFORMS.map((plat, i) => {
+        {lvl.platforms.map((plat, i) => {
           const screenX = plat.x - camera
           const viewW = canvasRef.current?.clientWidth ?? 900
           if (screenX + plat.w < -20 || screenX > viewW + 20) return null
@@ -575,7 +497,8 @@ export default function PlatformerGame() {
         {coins.map(c => {
           if (c.collected) return null
           return (
-            <div key={c.id} className="pl-coin" style={{ left: c.x - camera - 10, top: c.y - 10 }} aria-hidden>
+            <div key={c.id} className="pl-coin"
+              style={{ left: c.x - camera - 10, top: c.y - 10 }} aria-hidden>
               <div className="pl-coin__inner" />
             </div>
           )
@@ -589,7 +512,14 @@ export default function PlatformerGame() {
           if (ex + PLAYER_W < -40 || ex > viewW + 40) return null
           return (
             <div key={e.id}
-              className={`pl-enemy${e.squished ? ' pl-enemy--squished' : ''}`}
+              className={[
+                'pl-enemy',
+                e.squished       ? 'pl-enemy--squished' : '',
+                e.kind === 'fast'    ? 'pl-enemy--fast'    : '',
+                e.kind === 'flyer'   ? 'pl-enemy--flyer'   : '',
+                e.kind === 'bouncer' ? 'pl-enemy--bouncer' : '',
+                e.kind === 'boss'    ? 'pl-enemy--boss'    : '',
+              ].filter(Boolean).join(' ')}
               style={{ left: ex, top: e.y + (e.squished ? PLAYER_H - 12 : 0) }}
               aria-hidden>
               {!e.squished && (<>
@@ -601,15 +531,16 @@ export default function PlatformerGame() {
           )
         })}
 
-        {/* Goal flag */}
+        {/* Goal flag / Golden Seed */}
         {(() => {
-          const fx = GOAL_X - camera
+          const fx    = lvl.goalX - camera
           const viewW = canvasRef.current?.clientWidth ?? 900
           if (fx < viewW + 60) {
+            const isFinalLevel = levelIndex === TOTAL_LEVELS - 1
             return (
               <div className="pl-flag" style={{ left: fx, top: GROUND_Y - 200 }}>
                 <div className="pl-flag__pole" />
-                <div className="pl-flag__banner">🏁</div>
+                <div className="pl-flag__banner">{isFinalLevel ? '🌟' : '🏁'}</div>
               </div>
             )
           }
@@ -623,7 +554,7 @@ export default function PlatformerGame() {
             !facingRight ? 'pl-player--left' : '',
             !onGround ? 'pl-player--jump' : (pvx !== 0 ? `pl-player--walk${animFrame}` : ''),
           ].filter(Boolean).join(' ')}
-          style={{ left: sx, top: py }} aria-label="Player">
+          style={{ left: sx, top: py }} aria-label="Pip">
             <div className="pl-hat" />
             <div className="pl-head">
               <div className="pl-eye" />
@@ -637,7 +568,48 @@ export default function PlatformerGame() {
           </div>
         )}
 
-        {/* Pause overlay */}
+        {/* ── Story / Level-start card ─────────────────────────────────── */}
+        {phase === 'story' && (
+          <div className="pl-overlay">
+            <div className="pl-overlay__box pl-overlay__box--story"
+              style={{ borderColor: worldColor }}>
+              <div className="pl-overlay__world-badge" style={{ background: worldColor }}>
+                {WORLD_NAMES[lvl.world]}
+              </div>
+              <div className="pl-overlay__level-title">{lvl.storyTitle}</div>
+              <div className="pl-overlay__level-num">
+                Level {levelIndex + 1} / {TOTAL_LEVELS}
+              </div>
+              <p className="pl-overlay__flavour">{lvl.storyText}</p>
+              <button className="pl-btn pl-btn--story"
+                style={{ background: worldColor }}
+                onClick={() => { setPhase('playing'); phaseRef.current = 'playing' }}>
+                ▶ Play
+              </button>
+              <div className="pl-overlay__hint">Press Enter or Space to start</div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Level clear ───────────────────────────────────────────────── */}
+        {phase === 'levelClear' && (
+          <div className="pl-overlay">
+            <div className="pl-overlay__box pl-overlay__box--win">
+              <div className="pl-overlay__emoji">⭐</div>
+              <div className="pl-overlay__title pl-overlay__title--win">
+                Level Clear!
+              </div>
+              <div className="pl-overlay__sub">Score: {score.toLocaleString()}</div>
+              <div className="pl-overlay__sub">Coins: {collectedCoins}/{totalCoins}</div>
+              <button className="pl-btn"
+                onClick={() => loadLevel(levelIndex + 1)}>
+                Next Level →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Pause overlay ─────────────────────────────────────────────── */}
         {phase === 'paused' && (
           <div className="pl-overlay">
             <div className="pl-overlay__box">
@@ -648,20 +620,23 @@ export default function PlatformerGame() {
           </div>
         )}
 
-        {/* Win */}
+        {/* ── Win (all 50 levels) ───────────────────────────────────────── */}
         {phase === 'won' && (
           <div className="pl-overlay">
             <div className="pl-overlay__box pl-overlay__box--win">
-              <div className="pl-overlay__emoji">🎉</div>
-              <div className="pl-overlay__title pl-overlay__title--win">YOU WIN!</div>
-              <div className="pl-overlay__sub">Score: {score.toLocaleString()}</div>
+              <div className="pl-overlay__emoji">🌟</div>
+              <div className="pl-overlay__title pl-overlay__title--win">
+                YOU SAVED THE MEADOW REALM!
+              </div>
+              <div className="pl-overlay__sub">Pip reclaims the Golden Seed!</div>
+              <div className="pl-overlay__sub">Final Score: {score.toLocaleString()}</div>
               <div className="pl-overlay__sub">Coins: {collectedCoins}/{totalCoins}</div>
               <button className="pl-btn" onClick={resetGame}>Play Again</button>
             </div>
           </div>
         )}
 
-        {/* Game over */}
+        {/* ── Game over ─────────────────────────────────────────────────── */}
         {phase === 'gameOver' && (
           <div className="pl-overlay">
             <div className="pl-overlay__box pl-overlay__box--over">
@@ -675,7 +650,7 @@ export default function PlatformerGame() {
 
       </div>
 
-      {/* ── Hand panel (below game canvas, does not block gameplay) ──────── */}
+      {/* ── Hand panel ───────────────────────────────────────────────────── */}
       {handMode && (
         <div className="pl-hand-panel"
           onMouseMove={e => e.stopPropagation()} onClick={e => e.stopPropagation()}>
@@ -723,15 +698,19 @@ export default function PlatformerGame() {
           <span className="pl-hud-cell__label">LIVES</span>
           <span className="pl-hud-cell__value">
             {Array.from({ length: Math.max(0, lives) }).map((_, i) => (
-              <span key={i} className="pl-life-icon" aria-hidden>🍄</span>
+              <span key={i} className="pl-life-icon" aria-hidden>🌱</span>
             ))}
           </span>
         </div>
         <div className="pl-hud-cell">
+          <span className="pl-hud-cell__label">LEVEL</span>
+          <span className="pl-hud-cell__value">{levelIndex + 1} / {TOTAL_LEVELS}</span>
+        </div>
+        <div className="pl-hud-cell pl-hud-cell--wide">
           <span className="pl-hud-cell__label">PROGRESS</span>
           <div className="pl-progress-bar">
             <div className="pl-progress-bar__fill"
-              style={{ width: `${Math.min(100, (player.x / GOAL_X) * 100).toFixed(1)}%` }} />
+              style={{ width: `${Math.min(100, (player.x / lvl.goalX) * 100).toFixed(1)}%` }} />
             <span className="pl-progress-bar__flag">🏁</span>
           </div>
         </div>
