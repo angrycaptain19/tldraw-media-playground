@@ -1,70 +1,29 @@
-// ─── FPS Game – Game Loop Hook ────────────────────────────────────────────────
-// Stub React hook that will drive the FPS simulation.
-// Downstream tasks will fill in the tick logic.
+// ─── FPS Game – Game Loop Hook stub ───────────────────────────────────────────
+// Exports useGameLoop() — a React hook that will drive the FPS simulation at
+// ~60 fps via requestAnimationFrame.
+// Downstream tasks will fill in the tick logic (movement, bullets, collision).
 
-import { useEffect, useRef } from 'react'
-import type { FpsGameState, FpsExternalInput } from './types'
-
-// ── Types ──────────────────────────────────────────────────────────────────────
-
-export interface UseGameLoopOptions {
-  /** Whether the game loop should be running */
-  running: boolean
-  /** A getter for the current external input snapshot */
-  getInput: () => FpsExternalInput
-  /** Called every animation frame with the updated game state */
-  onTick: (state: FpsGameState) => void
-  /** Initial game state */
-  initialState: FpsGameState
-}
-
-// ── Exported stub ──────────────────────────────────────────────────────────────
+import { useState } from 'react'
+import type { FpsExternalInput, FpsGameState } from './types'
 
 /**
- * Drives the FPS game simulation via `requestAnimationFrame`.
+ * Runs the FPS game loop at ~60fps via requestAnimationFrame.
  *
- * - Calls `getInput()` each tick to collect the latest player input.
- * - Advances the game state (physics, bullets, enemies, etc.).
- * - Invokes `onTick` with the new state so the React component can re-render.
+ * @param initialState   Seed state for the simulation.
+ * @param externalInputs Optional [p1Input, p2Input] that overrides keyboard.
+ * @returns The current FpsGameState, updated every frame.
  *
- * @stub The hook schedules and cancels the RAF loop but does not yet advance
- *       the simulation. Downstream tasks should mutate `stateRef.current` and
- *       call `onTick` inside the `tick` function.
+ * @stub The RAF loop and tick logic are not yet implemented.
  */
-export function useGameLoop(options: UseGameLoopOptions): void {
-  const { running, getInput, onTick, initialState } = options
+export function useGameLoop(
+  initialState: FpsGameState,
+  _externalInputs?: [FpsExternalInput?, FpsExternalInput?],
+): FpsGameState {
+  const [gameState] = useState<FpsGameState>(initialState)
 
-  const stateRef = useRef<FpsGameState>(initialState)
-  const rafRef   = useRef<number | null>(null)
+  // TODO: set up requestAnimationFrame loop
+  // TODO: register keyboard listeners for P1 (WASD + Space) and P2 (IJKL + Enter)
+  // TODO: implement per-frame tick: move players, advance bullets, detect hits
 
-  useEffect(() => {
-    stateRef.current = initialState
-  }, [initialState])
-
-  useEffect(() => {
-    function tick(): void {
-      if (!running) {
-        rafRef.current = requestAnimationFrame(tick)
-        return
-      }
-
-      // TODO: read input
-      void getInput()
-
-      // TODO: advance simulation (movement, collision, bullets, enemies)
-
-      // TODO: call onTick with the mutated state
-      onTick({ ...stateRef.current })
-
-      rafRef.current = requestAnimationFrame(tick)
-    }
-
-    rafRef.current = requestAnimationFrame(tick)
-    return () => {
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
-    }
-    // Intentionally omitting getInput and onTick from deps - callers
-    // should memoize those callbacks with useCallback.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [running])
+  return gameState
 }

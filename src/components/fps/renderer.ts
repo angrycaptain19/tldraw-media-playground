@@ -1,11 +1,8 @@
-// ─── FPS Game – Canvas Renderer ──────────────────────────────────────────────
-// Stub renderer that will paint raycasted walls, floor, ceiling, sprites,
-// and the HUD onto a 2-D canvas.
-// Downstream tasks will flesh out the drawing routines.
+// ─── FPS Game – Canvas Renderer stub ─────────────────────────────────────────
+// Exports renderFrame() — paints the raycasted view onto a 2-D canvas context.
+// Downstream tasks will implement wall slices, sprites, and the HUD.
 
 import type { FpsGameState } from './types'
-
-// ── Types ──────────────────────────────────────────────────────────────────────
 
 export interface RenderFrameOptions {
   /** Target 2-D rendering context */
@@ -16,24 +13,17 @@ export interface RenderFrameOptions {
   height: number
   /** Current game state snapshot */
   state: FpsGameState
-  /** Id of the local player (used for first-person camera) */
-  localPlayerId: string
+  /** Which player's perspective to render from */
+  playerIndex: 0 | 1
   /** Horizontal field-of-view in degrees */
   fovDeg?: number
 }
 
-// ── Exported stub ──────────────────────────────────────────────────────────────
-
 /**
  * Paint one frame of the FPS view to the given canvas context.
  *
- * Render order (to be implemented by downstream tasks):
- * 1. Clear / draw sky and floor gradients.
- * 2. For each screen column, cast a ray and draw the wall slice.
- * 3. Sort and draw sprites (enemies, bullets, items).
- * 4. Draw the HUD (crosshair, ammo, health).
- *
- * @stub Currently fills the canvas with a dark placeholder and returns early.
+ * @stub Fills the canvas with a dark placeholder.
+ *       Downstream tasks will implement raycasted walls, sprites, and HUD.
  */
 export function renderFrame(options: RenderFrameOptions): void {
   const { ctx, width, height } = options
@@ -42,7 +32,8 @@ export function renderFrame(options: RenderFrameOptions): void {
   ctx.fillStyle = '#0d1117'
   ctx.fillRect(0, 0, width, height)
 
-  // TODO: implement raycasted wall rendering
-  // TODO: implement sprite rendering
-  // TODO: implement HUD rendering
+  // TODO: draw sky and floor gradients
+  // TODO: cast one ray per screen column and draw wall slices
+  // TODO: sort and draw sprites (enemies, bullets, items)
+  // TODO: draw HUD (crosshair, ammo, health)
 }
