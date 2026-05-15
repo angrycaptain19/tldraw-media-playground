@@ -6,77 +6,73 @@
 //   2. For each screen column, use the pre-cast RayHit to determine wall-strip
 //      height, pick a wall colour based on tileType, apply a brightness
 //      multiplier for side (N/S = 100 %, E/W = 60 %), and draw a centred rect.
-//   3. Re-draws whenever `rays` changes, keeping it in sync with the game loop.
+//   3. Render enemy sprites (Z-sorted, clipped against the wall Z-buffer).
+//   4. Draw the player's gun sprite at the bottom of the screen with bob
+//      animation (walking) and recoil animation (firing).
+//   5. Re-draws whenever `rays` changes, keeping it in sync with the game loop.
 //
 // Side convention (from raycast.ts)
-//   • side === 0  →  N/S face  (full brightness)
-//   • side === 1  →  E/W face  (60 % brightness for depth cue)
+//   . side === 0  ->  N/S face  (full brightness)
+//   . side === 1  ->  E/W face  (60 % brightness for depth cue)
+//
+// Gun rendering
+//   A pixel-art style pistol is drawn procedurally using canvas 2D shapes.
+//   . Bobbing: position oscillates vertically as the player walks, derived
+//     from player position changes between frames.
+//   . Recoil: when a bullet is fired (bullets array gains a new entry from
+//     this player), the gun slides up then snaps back over ~14 frames.
+//   . Muzzle flash: a bright radial gradient is shown for ~8 frames after
+//     firing.
 
 import { useRef, useEffect, useCallback } from 'react'
 import type { FpsGameState, RayHit, FpsEnemy } from './types'
 import { castRays } from './raycast'
 
-// ── Colour palette ─────────────────────────────────────────────────────────────
+// -- Colour palette -------------------------------------------------------------
 
-/**
- * Base wall colours (H, S, L) indexed by tile type.
- * tileType 0 is never a wall; types 1-N use indices 1-N.
- * Extra types wrap around.
- */
 const WALL_COLORS_HSL: ReadonlyArray<readonly [number, number, number]> = [
-  [0,   0,  50],   // 0 – unused (empty tile)
-  [15,  70, 45],   // 1 – reddish-brown brick
-  [210, 50, 40],   // 2 – slate blue stone
-  [130, 45, 35],   // 3 – mossy green
-  [45,  65, 45],   // 4 – sandy yellow
-  [270, 40, 40],   // 5 – dusty purple
-  [185, 55, 38],   // 6 – teal concrete
-  [0,   0,  35],   // 7 – dark grey metal
+  [0,   0,  50],
+  [15,  70, 45],
+  [210, 50, 40],
+  [130, 45, 35],
+  [45,  65, 45],
+  [270, 40, 40],
+  [185, 55, 38],
+  [0,   0,  35],
 ]
 
-/** Sky / ceiling colour */
 const CEILING_COLOR = '#1a1a2e'
-
-/** Floor colour */
 const FLOOR_COLOR = '#3a3a3a'
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// -- Gun animation constants ----------------------------------------------------
 
-/**
- * Convert HSL components to a CSS colour string, applying an optional
- * brightness multiplier (0-1) to the lightness.
- */
+const RECOIL_FRAMES = 14
+const RECOIL_LIFT_RATIO = 0.08
+const RECOIL_TILT_DEG = 12
+const BOB_PERIOD = 30
+const BOB_AMP_RATIO = 0.025
+const WALK_THRESHOLD = 0.001
+
+// -- Helpers --------------------------------------------------------------------
+
 function hslToString(h: number, s: number, l: number, brightness: number): string {
   const adjL = Math.round(l * brightness)
   return `hsl(${h},${s}%,${adjL}%)`
 }
 
-/**
- * Pick the HSL tuple for a given tile type, wrapping for unknown types.
- */
 function wallColorFor(tileType: number): readonly [number, number, number] {
   const idx = Math.max(1, tileType) % WALL_COLORS_HSL.length || 1
   return WALL_COLORS_HSL[idx]
 }
 
-// ── Enemy sprite renderer ─────────────────────────────────────────────────────
-//
-// Classic Z-sorted sprite projection:
-//   1. Translate sprite to camera space.
-//   2. Project onto the screen plane.
-//   3. Clip each sprite column against the Z-buffer.
-//   4. Draw a coloured rectangle (no texture atlas required).
+// -- Enemy sprite renderer ------------------------------------------------------
 
-/** Colours per enemy kind */
 const ENEMY_COLORS: Record<FpsEnemy['kind'], string> = {
-  stationary: '#dc2626',  // red
-  patrol:     '#d97706',  // amber
-  chase:      '#7c3aed',  // violet
+  stationary: '#dc2626',
+  patrol:     '#d97706',
+  chase:      '#7c3aed',
 }
 
-/**
- * Render all enemies as flat-shaded sprites into the canvas context.
- */
 function renderEnemySprites(
   ctx: CanvasRenderingContext2D,
   enemies: readonly FpsEnemy[],
@@ -95,7 +91,6 @@ function renderEnemySprites(
   const planeX = -dirY * planeMag
   const planeY =  dirX * planeMag
 
-  // Sort enemies furthest-first so nearer ones are drawn on top
   const visible = enemies.filter((e) => e.alive).slice().sort((a, b) => {
     const da = (a.x - player.x) ** 2 + (a.y - player.y) ** 2
     const db = (b.x - player.x) ** 2 + (b.y - player.y) ** 2
@@ -103,26 +98,21 @@ function renderEnemySprites(
   })
 
   for (const enemy of visible) {
-    // Translate sprite relative to camera
     const sx = enemy.x - player.x
     const sy = enemy.y - player.y
 
-    // Inverse camera matrix  [ planeX  dirX ]^-1
     const invDet = 1 / (planeX * dirY - dirX * planeY)
     const transformX = invDet * ( dirY * sx - dirX * sy)
     const transformY = invDet * (-planeY * sx + planeX * sy)
 
-    // Sprite is behind the camera plane – skip
     if (transformY <= 0.1) continue
 
     const spriteScreenX = Math.round((width / 2) * (1 + transformX / transformY))
 
-    // Sprite height on screen
     const spriteH = Math.abs(Math.round(height / transformY))
     const drawStartY = Math.max(0, Math.round((height - spriteH) / 2))
     const drawEndY   = Math.min(height, drawStartY + spriteH)
 
-    // Sprite width (square sprite)
     const spriteW = Math.abs(Math.round(width / transformY * 0.5))
     const drawStartX = Math.max(0, spriteScreenX - Math.round(spriteW / 2))
     const drawEndX   = Math.min(width, spriteScreenX + Math.round(spriteW / 2))
@@ -131,21 +121,18 @@ function renderEnemySprites(
 
     const color = ENEMY_COLORS[enemy.kind] ?? '#ffffff'
 
-    // Draw sprite column by column, respecting the Z-buffer
     for (let stripe = drawStartX; stripe < drawEndX; stripe++) {
       if (stripe < 0 || stripe >= width) continue
-      if (transformY >= zBuffer[stripe]) continue  // wall is closer
+      if (transformY >= zBuffer[stripe]) continue
 
       ctx.fillStyle = color
       ctx.fillRect(stripe, drawStartY, 1, drawEndY - drawStartY)
     }
 
-    // Draw a dark outline/edge strip for visual distinction (optional)
     ctx.fillStyle = 'rgba(0,0,0,0.4)'
     ctx.fillRect(drawStartX, drawStartY, 1, drawEndY - drawStartY)
     ctx.fillRect(drawEndX - 1, drawStartY, 1, drawEndY - drawStartY)
 
-    // Health bar above sprite
     const hpBarW = Math.max(4, spriteW)
     const hpBarX = spriteScreenX - Math.round(hpBarW / 2)
     const hpBarY = drawStartY - 7
@@ -159,40 +146,194 @@ function renderEnemySprites(
   }
 }
 
-// ── Props ──────────────────────────────────────────────────────────────────────
+// -- Gun drawing ----------------------------------------------------------------
+
+function drawGun(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  bobY: number,
+  recoilY: number,
+  recoilAngle: number,
+  showFlash: boolean,
+): void {
+  const scale = height / 480
+
+  const anchorX = width  * 0.68
+  const anchorY = height * 0.90 + bobY - recoilY
+
+  const slideW  = 80  * scale
+  const slideH  = 32  * scale
+  const gripW   = 38  * scale
+  const gripH   = 54  * scale
+  const barrelW = 70  * scale
+  const barrelH = 14  * scale
+  const guardW  = 28  * scale
+  const guardH  = 18  * scale
+  const trigW   = 6   * scale
+  const trigH   = 14  * scale
+
+  ctx.save()
+
+  ctx.translate(anchorX + gripW * 0.5, anchorY)
+  ctx.rotate(recoilAngle)
+  ctx.translate(-(anchorX + gripW * 0.5), -anchorY)
+
+  ctx.shadowColor    = 'rgba(0,0,0,0.6)'
+  ctx.shadowBlur     = 8 * scale
+  ctx.shadowOffsetX  = 3 * scale
+  ctx.shadowOffsetY  = 4 * scale
+
+  const gripX = anchorX
+  const gripY = anchorY - gripH
+
+  ctx.beginPath()
+  ctx.moveTo(gripX + 4 * scale,           gripY)
+  ctx.lineTo(gripX + gripW - 2 * scale,   gripY - 3 * scale)
+  ctx.lineTo(gripX + gripW + 5 * scale,   gripY + gripH)
+  ctx.lineTo(gripX - 2 * scale,           gripY + gripH)
+  ctx.closePath()
+  ctx.fillStyle = '#252525'
+  ctx.fill()
+
+  ctx.strokeStyle = 'rgba(255,255,255,0.07)'
+  ctx.lineWidth = 1.5 * scale
+  for (let i = 0; i < 3; i++) {
+    const lx = gripX + 8 * scale + i * 10 * scale
+    ctx.beginPath()
+    ctx.moveTo(lx,              gripY + 10 * scale)
+    ctx.lineTo(lx - 3 * scale, gripY + gripH - 8 * scale)
+    ctx.stroke()
+  }
+
+  const slideX = anchorX - 4 * scale
+  const slideY = anchorY - gripH * 0.6 - slideH
+
+  ctx.shadowColor = 'rgba(0,0,0,0.35)'
+  ctx.fillStyle   = '#4a4a4a'
+  ctx.beginPath()
+  if (ctx.roundRect) {
+    ctx.roundRect(slideX, slideY, slideW, slideH, 3 * scale)
+  } else {
+    ctx.rect(slideX, slideY, slideW, slideH)
+  }
+  ctx.fill()
+
+  ctx.shadowBlur   = 0
+  ctx.strokeStyle  = 'rgba(255,255,255,0.16)'
+  ctx.lineWidth    = 2 * scale
+  ctx.beginPath()
+  ctx.moveTo(slideX + 4 * scale, slideY + 2 * scale)
+  ctx.lineTo(slideX + slideW - 4 * scale, slideY + 2 * scale)
+  ctx.stroke()
+
+  const ejX = slideX + slideW * 0.38
+  const ejY = slideY + slideH * 0.25
+  ctx.fillStyle = '#1a1a1a'
+  ctx.fillRect(ejX, ejY, 22 * scale, 13 * scale)
+
+  const barrelX = slideX + slideW - 8 * scale
+  const barrelY = slideY + slideH * 0.5 - barrelH * 0.5
+
+  ctx.fillStyle = '#383838'
+  ctx.shadowBlur = 4 * scale
+  ctx.shadowColor = 'rgba(0,0,0,0.5)'
+  ctx.beginPath()
+  if (ctx.roundRect) {
+    ctx.roundRect(barrelX, barrelY, barrelW, barrelH, 2 * scale)
+  } else {
+    ctx.rect(barrelX, barrelY, barrelW, barrelH)
+  }
+  ctx.fill()
+
+  const muzzleX = barrelX + barrelW
+  const muzzleY = barrelY + barrelH / 2
+  ctx.shadowBlur = 0
+  ctx.strokeStyle = '#777'
+  ctx.lineWidth   = 2.5 * scale
+  ctx.beginPath()
+  ctx.arc(muzzleX - 2 * scale, muzzleY, barrelH * 0.62, 0, Math.PI * 2)
+  ctx.stroke()
+  ctx.fillStyle = '#111'
+  ctx.fill()
+
+  const tgX = anchorX + 2 * scale
+  const tgY = gripY + gripH * 0.08
+
+  ctx.strokeStyle = '#3a3a3a'
+  ctx.lineWidth   = 4.5 * scale
+  ctx.beginPath()
+  ctx.moveTo(tgX, tgY)
+  ctx.quadraticCurveTo(
+    tgX + guardW * 0.5, tgY + guardH * 1.5,
+    tgX + guardW,       tgY,
+  )
+  ctx.stroke()
+
+  ctx.fillStyle = '#555'
+  ctx.fillRect(tgX + guardW * 0.38, tgY + 2 * scale, trigW, trigH)
+
+  ctx.fillStyle = '#aaa'
+  ctx.fillRect(barrelX + barrelW * 0.82, barrelY - 5 * scale, 4 * scale, 6 * scale)
+
+  ctx.fillStyle = '#777'
+  ctx.fillRect(slideX + 3 * scale, slideY - 4 * scale, 14 * scale, 5 * scale)
+  ctx.fillStyle = '#1a1a1a'
+  ctx.fillRect(slideX + 7 * scale, slideY - 4 * scale, 4 * scale, 5 * scale)
+
+  ctx.restore()
+  ctx.save()
+
+  if (showFlash) {
+    const fx = muzzleX
+    const fy = muzzleY - recoilY
+
+    const outer = ctx.createRadialGradient(fx, fy, 0, fx, fy, 42 * scale)
+    outer.addColorStop(0,   'rgba(255,210,60,0.95)')
+    outer.addColorStop(0.3, 'rgba(255,120,20,0.75)')
+    outer.addColorStop(0.7, 'rgba(255,60,0,0.3)')
+    outer.addColorStop(1,   'rgba(255,60,0,0)')
+    ctx.fillStyle = outer
+    ctx.beginPath()
+    ctx.arc(fx, fy, 42 * scale, 0, Math.PI * 2)
+    ctx.fill()
+
+    const core = ctx.createRadialGradient(fx, fy, 0, fx, fy, 16 * scale)
+    core.addColorStop(0, 'rgba(255,255,220,1)')
+    core.addColorStop(1, 'rgba(255,180,40,0)')
+    ctx.fillStyle = core
+    ctx.beginPath()
+    ctx.arc(fx, fy, 16 * scale, 0, Math.PI * 2)
+    ctx.fill()
+
+    ctx.strokeStyle = 'rgba(255,230,90,0.85)'
+    ctx.lineWidth   = 2 * scale
+    const spokeCount = 6
+    for (let i = 0; i < spokeCount; i++) {
+      const a = (i / spokeCount) * Math.PI * 2
+      ctx.beginPath()
+      ctx.moveTo(fx + Math.cos(a) * 7  * scale, fy + Math.sin(a) * 7  * scale)
+      ctx.lineTo(fx + Math.cos(a) * 32 * scale, fy + Math.sin(a) * 32 * scale)
+      ctx.stroke()
+    }
+  }
+
+  ctx.restore()
+}
+
+// -- Props ----------------------------------------------------------------------
 
 export interface FpsRendererProps {
-  /** Full game state snapshot (used for player position + map). */
   state: FpsGameState
-  /**
-   * Pre-cast ray hits for this frame.
-   * When provided, the renderer uses them directly (no internal castRays call).
-   * When omitted or when the array length does not match `width`, the renderer
-   * calls `castRays` internally given `playerIndex` + state.
-   */
   rays?: RayHit[]
-  /** Canvas render width in pixels. */
   width: number
-  /** Canvas render height in pixels. */
   height: number
-  /**
-   * Which player's perspective to render from (default: 0).
-   * Only used when `rays` is not provided.
-   */
   playerIndex?: 0 | 1
-  /** Horizontal field-of-view in radians (default: ~66 degrees via camera-plane 0.66). */
   fov?: number
 }
 
-// ── Component ──────────────────────────────────────────────────────────────────
+// -- Component ------------------------------------------------------------------
 
-/**
- * `<FpsRenderer>` renders one frame of the FPS 3D view onto a `<canvas>`.
- *
- * It uses `useRef<HTMLCanvasElement>` and `useEffect` to redraw whenever the
- * `rays` prop (or `state`) changes, making it suitable for use at 60fps when
- * composed with `useGameLoop`.
- */
 export function FpsRenderer({
   state,
   rays,
@@ -203,6 +344,11 @@ export function FpsRenderer({
 }: FpsRendererProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
+  const prevPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
+  const bobPhaseRef = useRef<number>(0)
+  const recoilFrameRef = useRef<number>(0)
+  const lastFireTickRef = useRef<number>(-1)
+
   const draw = useCallback(() => {
     const canvas = canvasRef.current
     if (!canvas) return
@@ -210,7 +356,6 @@ export function FpsRenderer({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // ── Obtain ray hits ────────────────────────────────────────────────────
     let hits: RayHit[]
     if (rays && rays.length === width) {
       hits = rays
@@ -221,43 +366,101 @@ export function FpsRenderer({
 
     const halfH = height / 2
 
-    // ── 1. Ceiling (top half) ──────────────────────────────────────────────
     ctx.fillStyle = CEILING_COLOR
     ctx.fillRect(0, 0, width, halfH)
 
-    // ── 2. Floor (bottom half) ─────────────────────────────────────────────
     ctx.fillStyle = FLOOR_COLOR
     ctx.fillRect(0, halfH, width, halfH)
 
-    // ── 3. Wall strips (one fillRect per column) ───────────────────────────
-    // Also build a Z-buffer (perpendicular distance per column) for sprite clipping
     const zBuffer = new Float32Array(width)
     for (let col = 0; col < width; col++) {
       const hit = hits[col]
       if (!hit) continue
 
-      // Perpendicular distance -> wall-strip height (classic formula)
       const stripH = Math.min(height, Math.round(height / hit.distance))
-
-      // Vertical centre of the strip
       const drawY = Math.round((height - stripH) / 2)
-
-      // Brightness: N/S face = 100 %, E/W face = 60 %
       const brightness = hit.side === 0 ? 1.0 : 0.6
 
       const [h, s, l] = wallColorFor(hit.tileType)
       ctx.fillStyle = hslToString(h, s, l, brightness)
-
       ctx.fillRect(col, drawY, 1, stripH)
       zBuffer[col] = hit.distance
     }
 
-    // ── 4. Enemy sprites ────────────────────────────────────────────────────
     const player = state.players[playerIndex]
     renderEnemySprites(ctx, state.enemies, player, zBuffer, width, height, fov)
+
+    // -- Gun bob animation -------------------------------------------------------
+    const prev  = prevPosRef.current
+    const dx    = player.x - prev.x
+    const dy    = player.y - prev.y
+    const speed = Math.sqrt(dx * dx + dy * dy)
+    const isWalking = speed > WALK_THRESHOLD
+
+    prevPosRef.current = { x: player.x, y: player.y }
+
+    if (isWalking) {
+      bobPhaseRef.current += (2 * Math.PI) / BOB_PERIOD
+    } else {
+      const phase = bobPhaseRef.current % (Math.PI * 2)
+      if (phase > 0.08) {
+        bobPhaseRef.current += 0.12
+      }
+    }
+
+    const bobAmp = height * BOB_AMP_RATIO
+    const bobY   = Math.sin(bobPhaseRef.current) * bobAmp
+
+    // -- Recoil detection -------------------------------------------------------
+    const currentTick = state.tick
+    const hasFreshBullet = state.bullets.some((b) => {
+      if (b.ownerId !== playerIndex) return false
+      const bx = b.x - player.x
+      const by = b.y - player.y
+      return bx * bx + by * by < 0.6 * 0.6
+    })
+
+    if (hasFreshBullet && lastFireTickRef.current !== currentTick) {
+      recoilFrameRef.current = RECOIL_FRAMES
+      lastFireTickRef.current = currentTick
+    }
+
+    const decayT    = recoilFrameRef.current / RECOIL_FRAMES
+    const recoilY   = height * RECOIL_LIFT_RATIO * decayT
+    const recoilAng = -(RECOIL_TILT_DEG * decayT) * (Math.PI / 180)
+    const showFlash = recoilFrameRef.current > RECOIL_FRAMES * 0.45
+
+    if (recoilFrameRef.current > 0) recoilFrameRef.current -= 1
+
+    drawGun(ctx, width, height, bobY, recoilY, recoilAng, showFlash)
+
+    // -- Crosshair --------------------------------------------------------------
+    const cx = width / 2
+    const cy = height / 2
+    const cSize = Math.max(4, height * 0.018)
+    const cGap  = Math.max(2, height * 0.008)
+    ctx.save()
+    ctx.strokeStyle = showFlash ? 'rgba(255,200,60,0.95)' : 'rgba(255,255,255,0.85)'
+    ctx.lineWidth = Math.max(1.5, height * 0.004)
+    ctx.shadowColor = 'rgba(0,0,0,0.8)'
+    ctx.shadowBlur  = 3
+    ctx.beginPath()
+    ctx.moveTo(cx - cSize - cGap, cy)
+    ctx.lineTo(cx - cGap, cy)
+    ctx.moveTo(cx + cGap, cy)
+    ctx.lineTo(cx + cSize + cGap, cy)
+    ctx.moveTo(cx, cy - cSize - cGap)
+    ctx.lineTo(cx, cy - cGap)
+    ctx.moveTo(cx, cy + cGap)
+    ctx.lineTo(cx, cy + cSize + cGap)
+    ctx.stroke()
+    ctx.fillStyle = showFlash ? 'rgba(255,200,60,0.95)' : 'rgba(255,255,255,0.9)'
+    ctx.beginPath()
+    ctx.arc(cx, cy, Math.max(1.5, height * 0.003), 0, Math.PI * 2)
+    ctx.fill()
+    ctx.restore()
   }, [state, rays, width, height, playerIndex, fov])
 
-  // Redraw on every render / whenever deps change
   useEffect(() => {
     draw()
   }, [draw])
