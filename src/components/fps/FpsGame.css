@@ -1,5 +1,247 @@
 /* ─── FpsGame Component Styles ───────────────────────────────────────────── */
-/* Downstream tasks will populate this file.                                  */
+
+/* ── Root shell ─────────────────────────────────────────────────────────── */
+
+.fps-game {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 520px;
+  background: #0d1117;
+  font-family: 'Courier New', Courier, monospace;
+  user-select: none;
+  color: #e2e8f0;
+}
+
+/* ── Toolbar ────────────────────────────────────────────────────────────── */
+
+.fps-game__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  background: #161b22;
+  border-bottom: 1px solid #30363d;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.fps-game__toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.fps-game__toolbar-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #8b949e;
+}
+
+.fps-game__toolbar-btn {
+  padding: 0.3rem 0.75rem;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border-radius: 5px;
+  border: 1px solid #30363d;
+  background: #21262d;
+  color: #c9d1d9;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.fps-game__toolbar-btn:hover {
+  background: #2d333b;
+  border-color: #58a6ff;
+  color: #fff;
+}
+
+.fps-game__toolbar-btn--active {
+  background: #1f6feb;
+  border-color: #388bfd;
+  color: #fff;
+}
+
+.fps-game__toolbar-btn--active:hover {
+  background: #388bfd;
+}
+
+.fps-game__toolbar-btn--exit {
+  background: #3d1f1f;
+  border-color: #6e2626;
+  color: #fca5a5;
+}
+
+.fps-game__toolbar-btn--exit:hover {
+  background: #6e2626;
+  border-color: #f87171;
+  color: #fff;
+}
+
+.fps-game__toolbar-spacer {
+  flex: 1;
+  min-width: 0.5rem;
+}
+
+/* ── Viewport ────────────────────────────────────────────────────────────── */
+
+.fps-game__viewport {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+}
+
+.fps-game__viewport > * {
+  flex: 1;
+}
+
+/* ── Single-player view ──────────────────────────────────────────────────── */
+
+.fps-single-view {
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── HUD – single-player ─────────────────────────────────────────────────── */
+
+.fps-hud--single {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 10;
+  background: rgba(10, 18, 30, 0.75);
+  border: 1px solid rgba(125, 211, 252, 0.2);
+  border-radius: 8px;
+  padding: 0.45rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  pointer-events: none;
+  backdrop-filter: blur(4px);
+}
+
+.fps-hud__label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #7dd3fc;
+}
+
+.fps-hud__kills {
+  font-size: 0.78rem;
+  color: #f1f5f9;
+}
+
+.fps-hud__controls {
+  font-size: 0.7rem;
+  color: #64748b;
+  letter-spacing: 0.04em;
+}
+
+/* ── Health bar ──────────────────────────────────────────────────────────── */
+
+.fps-hud-bar {
+  position: relative;
+  width: 120px;
+  height: 14px;
+  background: #1e293b;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.fps-hud-bar__fill {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.15s, background 0.3s;
+}
+
+.fps-hud-bar__text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.7);
+  pointer-events: none;
+}
+
+/* ── Win overlay ─────────────────────────────────────────────────────────── */
+
+.fps-win-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+}
+
+.fps-win-overlay__box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  background: #161b22;
+  border: 2px solid #facc15;
+  border-radius: 16px;
+  padding: 2.5rem 3rem;
+  box-shadow: 0 0 60px rgba(250, 204, 21, 0.25);
+}
+
+.fps-win-overlay__trophy {
+  font-size: 3.5rem;
+  line-height: 1;
+}
+
+.fps-win-overlay__title {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 900;
+  color: #facc15;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.fps-win-overlay__subtitle {
+  margin: 0;
+  font-size: 0.95rem;
+  color: #94a3b8;
+}
+
+.fps-win-overlay__restart {
+  margin-top: 0.5rem;
+  padding: 0.6rem 1.5rem;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  background: #1f6feb;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.fps-win-overlay__restart:hover {
+  background: #388bfd;
+}
+
+/* ── Legacy placeholder (kept for backward compat) ───────────────────────── */
 
 .fps-container {
   position: relative;
@@ -22,7 +264,6 @@
   height: 100%;
 }
 
-/* Placeholder overlay */
 .fps-coming-soon {
   position: relative;
   z-index: 10;
