@@ -634,3 +634,184 @@
   color: #6b7280;
   font-size: 0.58rem;
 }
+
+/* ── World-themed canvas backgrounds ─────────────────────────────────────── */
+
+.pl-canvas--meadow {
+  background: linear-gradient(to bottom, #1e40af 0%, #3b82f6 35%, #7ec8e3 65%, #bae6fd 100%);
+}
+
+.pl-canvas--forest {
+  background: linear-gradient(to bottom, #14532d 0%, #166534 40%, #15803d 70%, #4ade80 100%);
+}
+
+.pl-canvas--mines {
+  background: linear-gradient(to bottom, #1c1917 0%, #292524 40%, #3c2a1e 70%, #44403c 100%);
+}
+
+.pl-canvas--clouds {
+  background: linear-gradient(to bottom, #0c4a6e 0%, #0369a1 30%, #38bdf8 65%, #e0f2fe 100%);
+}
+
+.pl-canvas--tower {
+  background: linear-gradient(to bottom, #450a0a 0%, #7f1d1d 35%, #991b1b 60%, #b91c1c 100%);
+}
+
+/* ── Level badge in control bar ──────────────────────────────────────────── */
+
+.pl-level-badge {
+  display: inline-block;
+  padding: 0.2rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.03em;
+  opacity: 0.92;
+  margin-left: 0.25rem;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+  white-space: nowrap;
+}
+
+/* ── Story / level-start overlay additions ───────────────────────────────── */
+
+.pl-overlay__box--story {
+  border: 3px solid #22c55e;
+  max-width: 420px;
+  text-align: center;
+}
+
+.pl-overlay__world-badge {
+  display: inline-block;
+  padding: 0.25rem 0.9rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.04em;
+  margin-bottom: 0.75rem;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.35);
+}
+
+.pl-overlay__level-title {
+  font-size: 1.6rem;
+  font-weight: 900;
+  color: #f9fafb;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 0.25rem;
+}
+
+.pl-overlay__level-num {
+  font-size: 0.78rem;
+  color: #9ca3af;
+  margin-bottom: 0.75rem;
+  letter-spacing: 0.06em;
+}
+
+.pl-overlay__flavour {
+  font-size: 0.82rem;
+  color: #d1d5db;
+  line-height: 1.55;
+  margin: 0 0 1rem;
+  font-style: italic;
+}
+
+.pl-overlay__hint {
+  font-size: 0.65rem;
+  color: #6b7280;
+  margin-top: 0.5rem;
+}
+
+.pl-btn--story {
+  color: #fff !important;
+  border: none !important;
+}
+
+/* ── Enemy kind variants ─────────────────────────────────────────────────── */
+
+/* Bouncer — forest mushroom-cap look */
+.pl-enemy--bouncer {
+  background: radial-gradient(circle at 40% 35%, #f97316, #c2410c);
+  border-color: #7c2d12;
+  animation: pl-bounce-idle 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes pl-bounce-idle {
+  0%   { transform: translateY(0); }
+  100% { transform: translateY(-4px); }
+}
+
+/* Fast — mines runner, red-orange tint */
+.pl-enemy--fast {
+  background: radial-gradient(circle at 40% 35%, #ef4444, #7f1d1d);
+  border-color: #450a0a;
+  width: 30px;
+  height: 30px;
+}
+
+/* Flyer — cloud patrol, teal */
+.pl-enemy--flyer {
+  background: radial-gradient(circle at 40% 35%, #22d3ee, #0e7490);
+  border-color: #164e63;
+  border-radius: 50%;
+}
+
+/* ── HUD wide cell for progress bar ─────────────────────────────────────── */
+
+.pl-hud-cell--wide {
+  flex: 2;
+}
+
+/* ── Override life icon (now a sprout for story consistency) ─────────────── */
+
+.pl-life-icon {
+  font-size: 1rem;
+  margin-right: 1px;
+}
+
+/* ── World numeric class aliases (pl-canvas--0 through pl-canvas--4) ───────── */
+.pl-canvas--0 { background: linear-gradient(to bottom, #1e40af 0%, #3b82f6 35%, #7ec8e3 65%, #bae6fd 100%); }
+.pl-canvas--1 { background: linear-gradient(to bottom, #14532d 0%, #166534 40%, #15803d 70%, #4ade80 100%); }
+.pl-canvas--2 { background: linear-gradient(to bottom, #1c1917 0%, #292524 40%, #3c2a1e 70%, #44403c 100%); }
+.pl-canvas--3 { background: linear-gradient(to bottom, #0c4a6e 0%, #0369a1 30%, #38bdf8 65%, #e0f2fe 100%); }
+.pl-canvas--4 { background: linear-gradient(to bottom, #450a0a 0%, #7f1d1d 35%, #991b1b 60%, #b91c1c 100%); }
+
+/* ── New platform kinds ──────────────────────────────────────────────────── */
+.pl-platform--mushroom {
+  background: radial-gradient(ellipse at 50% 30%, #f87171 70%, #dc2626 100%);
+  border-radius: 50% 50% 20% 20% / 60% 60% 20% 20%;
+  border: 2px solid #b91c1c;
+}
+.pl-platform--mine {
+  background: repeating-linear-gradient(90deg, #44403c 0px, #44403c 12px, #57534e 12px, #57534e 24px);
+  border: 2px solid #78716c;
+}
+.pl-platform--cloud-fade {
+  background: rgba(209, 213, 219, 0.6);
+  border-radius: 12px;
+  border: 2px dashed #9ca3af;
+  animation: cloudPulse 2s ease-in-out infinite;
+}
+@keyframes cloudPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+.pl-platform--crumble {
+  background: repeating-linear-gradient(
+    45deg,
+    #78350f 0px, #78350f 8px,
+    #92400e 8px, #92400e 16px
+  );
+  border: 2px solid #b45309;
+}
+
+/* ── Boss enemy ──────────────────────────────────────────────────────────── */
+.pl-enemy--boss {
+  width: 52px !important;
+  height: 64px !important;
+  background: radial-gradient(circle at 50% 40%, #7c3aed, #4c1d95) !important;
+  border-radius: 30% !important;
+  border: 3px solid #a78bfa !important;
+  box-shadow: 0 0 12px #7c3aed;
+}
