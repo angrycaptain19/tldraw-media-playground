@@ -4,8 +4,8 @@
 // player label, kill count, and health bar. First player to 5 kills wins.
 //
 // Controls:
-//   Player 1: W/A/S/D to move, Space to fire
-//   Player 2: I/J/K/L to move, Enter to fire
+//   Player 1: W/S to move, A/D to strafe, Arrow keys to turn, Space to fire
+//   Player 2: I/K to move, J/L to strafe, Enter to fire
 //
 // The game loop is driven by useGameLoop which handles both players keyboard
 // input natively. This component only handles layout, HUD, and win detection.
