@@ -4,7 +4,7 @@
 
 import './GameSelectionScreen.css'
 
-export type GameId = 'chess' | 'duckhunt' | 'platformer'
+export type GameId = 'chess' | 'duckhunt' | 'platformer' | 'fps'
 
 interface GameMeta {
   id: GameId
@@ -45,6 +45,16 @@ const GAMES: GameMeta[] = [
       'and reach the flag. Supports WASD keyboard and hand-tracking controls.',
     tags: ['Arcade', 'Platformer', '✋ Hand Tracking', '⌨️ WASD'],
     bannerClass: 'game-card__banner--platformer',
+  },
+  {
+    id: 'fps',
+    emoji: '🔫',
+    name: 'FPS Arena',
+    description:
+      'Local split-screen 2-player FPS. Face off in a raycasted 3D arena — ' +
+      'P1 uses WASD + Space, P2 uses IJKL + Enter. First to 5 kills wins!',
+    tags: ['Shooter', 'Split-Screen', '2 Players', '⌨️ Keyboard'],
+    bannerClass: 'game-card__banner--fps',
   },
 ]
 

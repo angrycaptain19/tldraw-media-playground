@@ -5,6 +5,7 @@ import type { GameId } from './components/GameSelectionScreen'
 import ChessGame from './components/ChessGame'
 import DuckHuntGame from './components/DuckHuntGame'
 import PlatformerGame from './components/PlatformerGame'
+import FpsSplitScreen from './components/fps/FpsSplitScreen'
 import HandRecognitionPanel from './components/HandRecognitionPanel'
 import AudioControlPanel from './components/AudioControlPanel'
 import type { HandData } from './hooks/useHandRecognition'
@@ -89,6 +90,12 @@ export default function App() {
               >
                 🍄 Platformer
               </button>
+              <button
+                className={`control-mode-btn ${activeGame === 'fps' ? 'control-mode-btn--active' : ''}`}
+                onClick={() => handleSelectGame('fps')}
+              >
+                🔫 FPS Arena
+              </button>
             </div>
 
             {/* Control mode – only relevant for Chess */}
@@ -140,6 +147,10 @@ export default function App() {
 
             {activeGame === 'platformer' && (
               <PlatformerGame />
+            )}
+
+            {activeGame === 'fps' && (
+              <FpsSplitScreen />
             )}
           </div>
         </>
