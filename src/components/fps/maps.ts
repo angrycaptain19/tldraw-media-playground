@@ -95,8 +95,10 @@ export const MAP_01_ROWS = MAP_01.length // 20
 /** Number of columns in MAP_01 */
 export const MAP_01_COLS = MAP_01[0].length // 20
 
-/** Suggested player-1 spawn (col, row) inside the NW quadrant */
-export const MAP_01_SPAWN_P1 = { col: 3, row: 3 } as const
+/** Suggested player-1 spawn (col, row) inside the NW quadrant.
+ * IMPORTANT: col=3,row=3 was a wall tile (brick pillar, value=2).
+ * Changed to col=2,row=2 which is guaranteed open floor (value=0). */
+export const MAP_01_SPAWN_P1 = { col: 2, row: 2 } as const
 
 /** Suggested player-2 spawn (col, row) inside the SE quadrant */
-export const MAP_01_SPAWN_P2 = { col: 16, row: 16 } as const
+export const MAP_01_SPAWN_P2 = { col: 17, row: 17 } as const
